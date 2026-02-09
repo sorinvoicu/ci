@@ -50,15 +50,13 @@ RUN Rscript -e "install.packages('pak', repos='https://cloud.r-project.org/')" \
         } \
     "
 
-# Verify all packages load
+# Verify key packages load (package names differ from repo names)
 RUN Rscript -e " \
-    packages <- readLines('/tmp/r-packages.txt'); \
-    packages <- packages[packages != '']; \
+    packages <- c('rSharp', 'ospsuite', 'tlf', 'ospsuite.utils', 'ospsuite.parameteridentification', 'esqlabsR'); \
     for (pkg in packages) { \
-        pkg_name <- basename(pkg); \
-        message('Loading: ', pkg_name); \
-        library(pkg_name, character.only = TRUE); \
-        message(pkg_name, ' loaded successfully!'); \
+        message('Loading: ', pkg); \
+        library(pkg, character.only = TRUE); \
+        message(pkg, ' loaded successfully!'); \
     }; \
     message('All packages validated!'); \
 "

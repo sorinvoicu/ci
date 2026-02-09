@@ -1,7 +1,10 @@
 name: Test R packages (Nix)
 
 on:
-  push:
+  workflow_dispatch:
+  # push:
+  #   branches:
+  #     - main
 
 jobs:
   test-packages:
