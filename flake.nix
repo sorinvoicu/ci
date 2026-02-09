@@ -35,6 +35,8 @@
           shellHook = ''
             export DOTNET_ROOT="${pkgs.dotnet-sdk}"
             export DOTNET_CLI_TELEMETRY_OPTOUT=1
+            # Add .NET libraries to LD_LIBRARY_PATH for rSharp to find hostfxr
+            export LD_LIBRARY_PATH="${pkgs.dotnet-sdk}/host/fxr:${pkgs.dotnet-sdk}/shared/Microsoft.NETCore.App:$LD_LIBRARY_PATH"
           '';
         };
       }
