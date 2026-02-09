@@ -1,10 +1,10 @@
 name: Build R Environment Image
 
 on:
+  workflow_dispatch:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches:
+      - main
 
 env:
   REGISTRY: ghcr.io
@@ -57,23 +57,14 @@ jobs:
         run: |
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
             Rscript -e "
-              packages <- readLines('/tmp/r-packages.txt')
-              packages <- packages[packages != '']
+              packages <- c('rSharp', 'ospsuite', 'tlf', 'ospsuite.utils', 'ospsuite.parameteridentification', 'esqlabsR')
               for (pkg in packages) {
-                pkg_name <- basename(pkg)
-                message('Testing: ', pkg_name)
-                library(pkg_name, character.only = TRUE)
+                message('Testing: ', pkg)
+                library(pkg, character.only = TRUE)
+                message(pkg, ' loaded!')
               }
               message('All packages load successfully!')
-            " 2>&1 || {
-            # If /tmp/r-packages.txt doesn't exist (cleaned up), test key packages
-            docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
-              Rscript -e "
-                library(rSharp)
-                library(ospsuite)
-                message('Key packages load successfully!')
-              "
-          }
+            "
 
       - name: Test immutability
         run: |
