@@ -40,7 +40,8 @@ jobs:
       - name: Initialize renv and create lock file
         run: |
           Rscript -e "renv::init(bare = TRUE)"
-          Rscript -e "renv::snapshot(type = 'all', exclude = 'renv', prompt = FALSE)"
+          Rscript -e "renv::hydrate()"
+          Rscript -e "renv::snapshot(exclude = c('renv', 'pak'), prompt = FALSE)"
 
       - name: Upload renv.lock as artifact
         uses: actions/upload-artifact@v4
