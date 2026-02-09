@@ -1,10 +1,10 @@
-name: Test rSharp (Nix)
+name: Test R packages (Nix)
 
 on:
   push:
 
 jobs:
-  test-rsharp:
+  test-packages:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,7 +17,7 @@ jobs:
       - name: Setup Nix cache
         uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Install rSharp and verify it loads
+      - name: Install and verify R packages
         run: |
           nix develop --command bash -c '
             echo "=== Environment Debug ==="
@@ -41,10 +41,32 @@ jobs:
             export R_LIBS_USER="${PWD}/R-libs"
             mkdir -p "$R_LIBS_USER"
 
-            echo "Installing rSharp from GitHub..."
+            echo "Installing pak..."
             Rscript -e "install.packages(\"pak\", repos=\"https://cloud.r-project.org/\")"
-            Rscript -e "pak::pak(\"Open-Systems-Pharmacology/rSharp@*release\")"
+
             echo ""
-            echo "Verifying rSharp loads..."
-            Rscript -e "library(rSharp); message(\"rSharp loaded successfully!\")"
+            echo "Installing R packages from r-packages.txt..."
+            Rscript -e "
+              packages <- readLines(\"r-packages.txt\")
+              packages <- packages[packages != \"\"]
+              for (pkg in packages) {
+                pkg_release <- paste0(pkg, \"@*release\")
+                message(\"Installing: \", pkg_release)
+                pak::pak(pkg_release)
+              }
+            "
+
+            echo ""
+            echo "Verifying all packages load..."
+            Rscript -e "
+              packages <- readLines(\"r-packages.txt\")
+              packages <- packages[packages != \"\"]
+              for (pkg in packages) {
+                pkg_name <- basename(pkg)
+                message(\"Loading: \", pkg_name)
+                library(pkg_name, character.only = TRUE)
+                message(pkg_name, \" loaded successfully!\")
+              }
+              message(\"All packages loaded successfully!\")
+            "
           '
