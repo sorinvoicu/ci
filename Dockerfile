@@ -1,6 +1,6 @@
 # R environment with .NET 8 for OSPSuite packages
 # Uses renv.lock for reproducible package versions
-FROM rocker/r-ver:4.4.2
+FROM rocker/r-ver:4.5.2
 
 LABEL org.opencontainers.image.source="https://github.com/sorinvoicu/ci"
 LABEL org.opencontainers.image.description="Immutable R environment with OSPSuite packages"
