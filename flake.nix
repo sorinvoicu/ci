@@ -37,12 +37,13 @@
           ];
 
           shellHook = ''
-            export DOTNET_ROOT="${dotnet}"
+            # The actual dotnet runtime is under share/dotnet in the SDK package
+            export DOTNET_ROOT="${dotnet}/share/dotnet"
             export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
             # Find and export hostfxr path for rSharp
-            HOSTFXR_DIR=$(find ${dotnet}/host/fxr -maxdepth 1 -type d -name "[0-9]*" | head -1)
-            RUNTIME_DIR=$(find ${dotnet}/shared/Microsoft.NETCore.App -maxdepth 1 -type d -name "[0-9]*" | head -1)
+            HOSTFXR_DIR=$(find $DOTNET_ROOT/host/fxr -maxdepth 1 -type d -name "[0-9]*" 2>/dev/null | head -1)
+            RUNTIME_DIR=$(find $DOTNET_ROOT/shared/Microsoft.NETCore.App -maxdepth 1 -type d -name "[0-9]*" 2>/dev/null | head -1)
 
             export LD_LIBRARY_PATH="$HOSTFXR_DIR:$RUNTIME_DIR:${pkgs.icu}/lib:$LD_LIBRARY_PATH"
           '';
