@@ -1,0 +1,50 @@
+name: Create renv.lock
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-renv-lock:
+    runs-on: ubuntu-latest
+    container:
+      image: rocker/r-ver:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          xargs apt-get install -y < system-dependencies.txt
+
+      - name: Install pak and renv
+        run: |
+          Rscript -e "install.packages('pak', repos='https://cloud.r-project.org/')"
+          Rscript -e "pak::pak('renv')"
+
+      - name: Install R packages from GitHub
+        run: |
+          Rscript -e "
+            packages <- readLines('r-packages.txt')
+            for (pkg in packages) {
+              pkg_release <- paste0(pkg, '@*release')
+              message('Installing released version: ', pkg_release)
+              pak::pak(pkg_release)
+            }
+          "
+
+      - name: Initialize renv and create lock file
+        run: |
+          Rscript -e "renv::init(bare = TRUE)"
+          Rscript -e "renv::snapshot(type = 'all', prompt = FALSE)"
+
+      - name: Upload renv.lock as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: renv-lock
+          path: renv.lock
+
