@@ -54,7 +54,21 @@
             HOSTFXR_DIR=$(find $DOTNET_ROOT/host/fxr -maxdepth 1 -type d -name "[0-9]*" 2>/dev/null | head -1)
             RUNTIME_DIR=$(find $DOTNET_ROOT/shared/Microsoft.NETCore.App -maxdepth 1 -type d -name "[0-9]*" 2>/dev/null | head -1)
 
-            export LD_LIBRARY_PATH="$HOSTFXR_DIR:$RUNTIME_DIR:${pkgs.icu}/lib:$LD_LIBRARY_PATH"
+            # Add all system libraries to LD_LIBRARY_PATH for R packages native code
+            export LD_LIBRARY_PATH="$HOSTFXR_DIR:$RUNTIME_DIR:${pkgs.lib.makeLibraryPath [
+              pkgs.icu
+              pkgs.libxml2
+              pkgs.openssl
+              pkgs.curl
+              pkgs.zlib
+              pkgs.libpng
+              pkgs.freetype
+              pkgs.fontconfig
+              pkgs.harfbuzz
+              pkgs.cairo
+              pkgs.libjpeg
+              pkgs.libtiff
+            ]}:$LD_LIBRARY_PATH"
           '';
         };
       }
