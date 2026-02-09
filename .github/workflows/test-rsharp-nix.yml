@@ -1,0 +1,35 @@
+name: Test rSharp (Nix)
+
+on:
+  push:
+
+jobs:
+  test-rsharp:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Setup Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Install rSharp and verify it loads
+        run: |
+          nix develop --command bash -c '
+            echo "R version:"
+            R --version | head -1
+            echo ""
+            echo ".NET version:"
+            dotnet --version
+            echo ""
+            echo "Installing rSharp from GitHub..."
+            Rscript -e "install.packages(\"pak\", repos=\"https://cloud.r-project.org/\")"
+            Rscript -e "pak::pak(\"Open-Systems-Pharmacology/rSharp@*release\")"
+            echo ""
+            echo "Verifying rSharp loads..."
+            Rscript -e "library(rSharp); message(\"rSharp loaded successfully!\")"
+          '
