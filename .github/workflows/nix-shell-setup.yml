@@ -23,7 +23,7 @@ jobs:
       - name: Verify Nix shell environment
         run: |
           nix-shell --run "R --version"
-          nix-shell --run "which pak || R -e 'packageVersion(\"pak\")'"
+          nix-shell --run "R -e 'packageVersion(\"remotes\")'"
 
       - name: Make install script executable
         run: chmod +x install-packages-nix.sh
