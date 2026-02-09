@@ -11,7 +11,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}/r-ospsuite
 
 jobs:
-  # First job: Generate renv.lock
+  # First job: Generate renv.lock and system requirements
   generate-lockfile:
     runs-on: ubuntu-latest
     container:
@@ -21,14 +21,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      - name: Install minimal dependencies for pak
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends \
-            libcurl4-openssl-dev libssl-dev libxml2-dev \
-            libfontconfig1-dev libfreetype6-dev libpng-dev \
-            libjpeg-dev libtiff-dev libharfbuzz-dev libfribidi-dev \
-            libcairo2-dev libxt-dev libgit2-dev wget
+          apt-get install -y --no-install-recommends libcurl4-openssl-dev libssl-dev wget
 
       - name: Install .NET 8 SDK
         run: |
@@ -39,9 +35,53 @@ jobs:
         env:
           DOTNET_ROOT: /usr/share/dotnet
 
-      - name: Install pak and renv
+      - name: Install pak
         run: |
           Rscript -e "install.packages('pak', repos='https://cloud.r-project.org/')"
+
+      - name: Generate system requirements list
+        run: |
+          Rscript -e "
+            packages <- readLines('r-packages.txt')
+            packages <- packages[packages != '']
+            refs <- paste0(packages, '@*release')
+
+            # Get system requirements for all packages
+            sysreqs <- pak::pkg_sysreqs(refs)
+
+            # Extract install scripts (apt-get install commands)
+            if (!is.null(sysreqs\$install_scripts) && length(sysreqs\$install_scripts) > 0) {
+              # Parse apt-get install commands to extract package names
+              install_cmds <- sysreqs\$install_scripts
+              apt_pkgs <- character()
+              for (cmd in install_cmds) {
+                if (grepl('apt-get install', cmd)) {
+                  # Extract package names after 'apt-get install -y'
+                  pkgs <- sub('.*apt-get install -y ', '', cmd)
+                  apt_pkgs <- c(apt_pkgs, strsplit(pkgs, ' ')[[1]])
+                }
+              }
+              apt_pkgs <- unique(apt_pkgs)
+              apt_pkgs <- apt_pkgs[apt_pkgs != '']
+              writeLines(apt_pkgs, 'sysreqs.txt')
+              message('System requirements saved to sysreqs.txt:')
+              message(paste(apt_pkgs, collapse = '\n'))
+            } else {
+              # Fallback: write empty file
+              writeLines(character(), 'sysreqs.txt')
+              message('No system requirements detected')
+            }
+          "
+
+      - name: Install system requirements
+        run: |
+          if [ -s sysreqs.txt ]; then
+            apt-get update
+            xargs apt-get install -y --no-install-recommends < sysreqs.txt
+          fi
+
+      - name: Install renv
+        run: |
           Rscript -e "pak::pak('renv')"
 
       - name: Install R packages from r-packages.txt
@@ -78,14 +118,16 @@ jobs:
             )
           "
 
-      - name: Upload renv.lock
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: renv-lock
-          path: renv.lock
+          name: build-artifacts
+          path: |
+            renv.lock
+            sysreqs.txt
           retention-days: 1
 
-  # Second job: Build Docker image using renv.lock
+  # Second job: Build Docker image using renv.lock and sysreqs.txt
   build:
     needs: generate-lockfile
     runs-on: ubuntu-latest
@@ -97,18 +139,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download renv.lock
+      - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: renv-lock
+          name: build-artifacts
 
-      - name: Show renv.lock info
+      - name: Show artifacts info
         run: |
+          echo "=== System requirements ==="
+          cat sysreqs.txt
+          echo ""
           echo "=== renv.lock package count ==="
           grep -c '"Package":' renv.lock || echo "Could not count packages"
-          echo ""
-          echo "=== Key packages in lockfile ==="
-          grep -E '"(rSharp|ospsuite|tlf|esqlabsR)"' renv.lock | head -20
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
