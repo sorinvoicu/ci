@@ -19,25 +19,25 @@ jobs:
 
       - name: Install and verify R packages
         run: |
-          nix develop --command bash -c '
+          # Use the FHS environment for compatibility with pre-built binaries
+          nix run .#fhs -- bash -c '
             echo "=== Environment Debug ==="
             echo "DOTNET_ROOT: $DOTNET_ROOT"
-            echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
-            echo ""
-            echo "=== hostfxr location ==="
-            find $DOTNET_ROOT -name "libhostfxr.so" 2>/dev/null || echo "hostfxr not found in DOTNET_ROOT"
             echo ""
             echo "=== .NET runtimes ==="
-            dotnet --list-runtimes
+            dotnet --list-runtimes || echo "dotnet not found"
             echo ""
             echo "R version:"
             R --version | head -1
             echo ""
             echo ".NET version:"
-            dotnet --version
+            dotnet --version || echo "dotnet not found"
+            echo ""
+            echo "libxml2 location:"
+            ldconfig -p | grep libxml2 || echo "libxml2 not in ldconfig"
             echo ""
 
-            # Set up writable R library (Nix store is read-only)
+            # Set up writable R library
             export R_LIBS_USER="${PWD}/R-libs"
             mkdir -p "$R_LIBS_USER"
 
