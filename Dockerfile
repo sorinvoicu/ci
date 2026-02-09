@@ -35,8 +35,9 @@ RUN Rscript -e "install.packages('renv', repos='https://cloud.r-project.org/')"
 COPY renv.lock /app/renv.lock
 
 # Restore packages from lockfile to system library
+# Note: pak disabled for restore to avoid version conflicts
 RUN Rscript -e " \
-    options(renv.config.pak.enabled = TRUE); \
+    options(renv.config.pak.enabled = FALSE); \
     renv::restore( \
         lockfile = '/app/renv.lock', \
         library = '/usr/local/lib/R/site-library', \
