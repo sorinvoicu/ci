@@ -20,6 +20,16 @@ jobs:
       - name: Install rSharp and verify it loads
         run: |
           nix develop --command bash -c '
+            echo "=== Environment Debug ==="
+            echo "DOTNET_ROOT: $DOTNET_ROOT"
+            echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+            echo ""
+            echo "=== hostfxr location ==="
+            find $DOTNET_ROOT -name "libhostfxr.so" 2>/dev/null || echo "hostfxr not found in DOTNET_ROOT"
+            echo ""
+            echo "=== .NET runtimes ==="
+            dotnet --list-runtimes
+            echo ""
             echo "R version:"
             R --version | head -1
             echo ""
