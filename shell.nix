@@ -19,7 +19,7 @@ let
   # R with basic packages
   rEnv = pkgs.rWrapper.override {
     packages = with pkgs.rPackages; [
-      pak
+      remotes
       renv
     ];
   };
@@ -41,13 +41,13 @@ in pkgs.mkShell {
     echo "R version: $(R --version | head -1)"
     echo ""
     echo "System dependencies: installed"
-    echo "R packages (pak, renv): installed"
+    echo "R packages (remotes, renv): installed"
     echo ""
     echo "To install GitHub packages, run:"
-    echo "  ./install-packages.sh"
+    echo "  ./install-packages-nix.sh"
     echo ""
     echo "Or manually:"
-    echo "  R -e 'pkgs <- readLines(\"r-packages.txt\"); pkgs <- pkgs[pkgs != \"\"]; for(p in pkgs) pak::pak(paste0(p, \"@*release\"))'"
+    echo "  R -e 'pkgs <- readLines(\"r-packages.txt\"); pkgs <- pkgs[pkgs != \"\"]; for(p in pkgs) remotes::install_github(p, upgrade=\"never\")'"
     echo "================================================"
   '';
 }

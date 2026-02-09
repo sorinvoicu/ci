@@ -26,11 +26,11 @@ jobs:
           nix-shell --run "which pak || R -e 'packageVersion(\"pak\")'"
 
       - name: Make install script executable
-        run: chmod +x install-packages.sh
+        run: chmod +x install-packages-nix.sh
 
       - name: Install R packages in Nix shell
         run: |
-          nix-shell --run "./install-packages.sh"
+          nix-shell --run "./install-packages-nix.sh"
 
       - name: Verify installed packages
         run: |
