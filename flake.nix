@@ -1,5 +1,5 @@
 {
-  description = "R environment with .NET 8 for rSharp";
+  description = "R environment with .NET 8 for rSharp (FHS compatible)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -11,66 +11,62 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         dotnet = pkgs.dotnet-sdk_8;
-      in
-      {
-        devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            # R and common dependencies
+
+        # Common libraries needed by R packages
+        libs = with pkgs; [
+          # .NET and ICU
+          dotnet
+          icu
+
+          # System dependencies
+          curl
+          openssl
+          libxml2
+          zlib
+
+          # Graphics and font libraries
+          libpng
+          freetype
+          fontconfig
+          harfbuzz
+          cairo
+          libjpeg
+          libtiff
+          xorg.libX11
+          xorg.libXt
+
+          # Standard C library
+          stdenv.cc.cc.lib
+        ];
+
+        # FHS environment that provides standard Linux paths
+        fhsEnv = pkgs.buildFHSEnv {
+          name = "r-fhs-env";
+          targetPkgs = pkgs: with pkgs; [
             R
-
-            # .NET 8 SDK (required by rSharp)
-            dotnet
-
-            # ICU for .NET globalization
-            icu
-
-            # System dependencies commonly needed for R packages
-            curl
-            openssl
-            libxml2
-            zlib
-            pkg-config
-
-            # Graphics and font libraries (needed for sysfonts, showtext, etc.)
-            libpng
-            freetype
-            fontconfig
-            harfbuzz
-            cairo
-            libjpeg
-            libtiff
-
-            # For building R packages from source
             gcc
             gnumake
-          ];
+            pkg-config
+          ] ++ libs;
 
-          shellHook = ''
-            # The actual dotnet runtime is under share/dotnet in the SDK package
+          profile = ''
             export DOTNET_ROOT="${dotnet}/share/dotnet"
             export DOTNET_CLI_TELEMETRY_OPTOUT=1
-
-            # Find and export hostfxr path for rSharp
-            HOSTFXR_DIR=$(find $DOTNET_ROOT/host/fxr -maxdepth 1 -type d -name "[0-9]*" 2>/dev/null | head -1)
-            RUNTIME_DIR=$(find $DOTNET_ROOT/shared/Microsoft.NETCore.App -maxdepth 1 -type d -name "[0-9]*" 2>/dev/null | head -1)
-
-            # Add all system libraries to LD_LIBRARY_PATH for R packages native code
-            export LD_LIBRARY_PATH="$HOSTFXR_DIR:$RUNTIME_DIR:${pkgs.lib.makeLibraryPath [
-              pkgs.icu
-              pkgs.libxml2
-              pkgs.openssl
-              pkgs.curl
-              pkgs.zlib
-              pkgs.libpng
-              pkgs.freetype
-              pkgs.fontconfig
-              pkgs.harfbuzz
-              pkgs.cairo
-              pkgs.libjpeg
-              pkgs.libtiff
-            ]}:$LD_LIBRARY_PATH"
           '';
         };
+      in
+      {
+        # FHS shell for running pre-built binaries (like ospsuite)
+        devShells.default = pkgs.mkShell {
+          buildInputs = [ fhsEnv ];
+
+          shellHook = ''
+            exec ${fhsEnv}/bin/r-fhs-env
+          '';
+        };
+
+        # Also expose the FHS env directly
+        packages.fhs = fhsEnv;
       }
     );
 }
