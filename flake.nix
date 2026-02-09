@@ -31,6 +31,15 @@
             zlib
             pkg-config
 
+            # Graphics and font libraries (needed for sysfonts, showtext, etc.)
+            libpng
+            freetype
+            fontconfig
+            harfbuzz
+            cairo
+            libjpeg
+            libtiff
+
             # For building R packages from source
             gcc
             gnumake
