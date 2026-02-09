@@ -26,6 +26,11 @@ jobs:
             echo ".NET version:"
             dotnet --version
             echo ""
+
+            # Set up writable R library (Nix store is read-only)
+            export R_LIBS_USER="${PWD}/R-libs"
+            mkdir -p "$R_LIBS_USER"
+
             echo "Installing rSharp from GitHub..."
             Rscript -e "install.packages(\"pak\", repos=\"https://cloud.r-project.org/\")"
             Rscript -e "pak::pak(\"Open-Systems-Pharmacology/rSharp@*release\")"
