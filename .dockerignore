@@ -1,0 +1,22 @@
+# Git
+.git
+.gitignore
+
+# Nix
+flake.nix
+flake.lock
+.direnv
+result
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# CI artifacts
+R-libs/
+*.log
+
+# Claude
+.claude/
