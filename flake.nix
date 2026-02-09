@@ -1,5 +1,5 @@
 {
-  description = "R environment with .NET for rSharp";
+  description = "R environment with .NET 8 for rSharp";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -10,6 +10,7 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
+        dotnet = pkgs.dotnet-sdk_8;
       in
       {
         devShells.default = pkgs.mkShell {
@@ -17,8 +18,11 @@
             # R and common dependencies
             R
 
-            # .NET SDK (latest)
-            dotnet-sdk
+            # .NET 8 SDK (required by rSharp)
+            dotnet
+
+            # ICU for .NET globalization
+            icu
 
             # System dependencies commonly needed for R packages
             curl
@@ -33,10 +37,14 @@
           ];
 
           shellHook = ''
-            export DOTNET_ROOT="${pkgs.dotnet-sdk}"
+            export DOTNET_ROOT="${dotnet}"
             export DOTNET_CLI_TELEMETRY_OPTOUT=1
-            # Add .NET libraries to LD_LIBRARY_PATH for rSharp to find hostfxr
-            export LD_LIBRARY_PATH="${pkgs.dotnet-sdk}/host/fxr:${pkgs.dotnet-sdk}/shared/Microsoft.NETCore.App:$LD_LIBRARY_PATH"
+
+            # Find and export hostfxr path for rSharp
+            HOSTFXR_DIR=$(find ${dotnet}/host/fxr -maxdepth 1 -type d -name "[0-9]*" | head -1)
+            RUNTIME_DIR=$(find ${dotnet}/shared/Microsoft.NETCore.App -maxdepth 1 -type d -name "[0-9]*" | head -1)
+
+            export LD_LIBRARY_PATH="$HOSTFXR_DIR:$RUNTIME_DIR:${pkgs.icu}/lib:$LD_LIBRARY_PATH"
           '';
         };
       }
