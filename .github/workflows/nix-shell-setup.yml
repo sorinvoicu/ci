@@ -7,7 +7,7 @@ on:
       - main
 
 jobs:
-  create-nix-shell:
+  test-nix-shell:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,79 +20,28 @@ jobs:
       - name: Setup Nix cache
         uses: DeterminateSystems/magic-nix-cache-action@v7
 
-      - name: Create shell.nix
+      - name: Verify Nix shell environment
         run: |
-          cat > shell.nix << 'EOF'
-          { pkgs ? import <nixpkgs> {} }:
+          nix-shell --run "R --version"
+          nix-shell --run "which pak || R -e 'packageVersion(\"pak\")'"
 
-          let
-            # Read system dependencies from file
-            systemDeps = builtins.filter (x: x != "") (
-              pkgs.lib.splitString "\n" (builtins.readFile ./system-dependencies.txt)
-            );
+      - name: Make install script executable
+        run: chmod +x install-packages.sh
 
-            # Map package names to Nix packages
-            nixSystemDeps = map (dep:
-              if dep == "dotnet-runtime-8.0" then pkgs.dotnet-runtime_8
-              else if dep == "libcurl4-openssl-dev" then pkgs.curl.dev
-              else if dep == "libssl-dev" then pkgs.openssl.dev
-              else if dep == "libxml2-dev" then pkgs.libxml2.dev
-              else if dep == "libfontconfig1-dev" then pkgs.fontconfig.dev
-              else if dep == "libharfbuzz-dev" then pkgs.harfbuzz.dev
-              else if dep == "libfribidi-dev" then pkgs.fribidi.dev
-              else if dep == "libfreetype6-dev" then pkgs.freetype.dev
-              else if dep == "libpng-dev" then pkgs.libpng.dev
-              else if dep == "libtiff5-dev" then pkgs.libtiff.dev
-              else if dep == "libjpeg-dev" then pkgs.libjpeg.dev
-              else throw "Unknown dependency: ${dep}"
-            ) systemDeps;
-
-            # R packages from GitHub
-            rPackages = with pkgs.rPackages; [
-              # CRAN dependencies will be resolved automatically
-              pak
-              renv
-            ];
-
-          in pkgs.mkShell {
-            buildInputs = [
-              pkgs.R
-              pkgs.git
-            ] ++ nixSystemDeps ++ rPackages;
-
-            shellHook = ''
-              echo "Nix shell environment loaded"
-              echo "R version: $(R --version | head -1)"
-              echo "Installing GitHub packages..."
-
-              # Install packages from r-packages.txt
-              R --quiet --no-save << 'R_EOF'
-              if (!require("pak", quietly = TRUE)) {
-                install.packages("pak", repos = "https://cloud.r-project.org/")
-              }
-
-              packages <- readLines("r-packages.txt")
-              packages <- packages[packages != ""]
-
-              for (pkg in packages) {
-                pkg_release <- paste0(pkg, "@*release")
-                message("Installing: ", pkg_release)
-                pak::pak(pkg_release)
-              }
-
-              message("\n✓ All packages installed successfully!")
-              R_EOF
-            '';
-          }
-          EOF
-
-      - name: Enter Nix shell and verify installation
+      - name: Install R packages in Nix shell
         run: |
-          nix-shell --run "R --quiet --no-save -e 'installed.packages()[, c(\"Package\", \"Version\")]' | head -20"
+          nix-shell --run "./install-packages.sh"
 
-      - name: Create shell.nix artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nix-shell
-          path: shell.nix
+      - name: Verify installed packages
+        run: |
+          nix-shell --run "R --quiet --no-save -e '
+            installed <- installed.packages()
+            github_pkgs <- c(\"rSharp\", \"ospsuite\", \"tlf\", \"ospsuite.utils\",
+                            \"ospsuite.parameteridentification\", \"esqlabsR\")
+            found <- github_pkgs[github_pkgs %in% installed[, \"Package\"]]
+            message(\"GitHub packages installed: \", length(found), \"/\", length(github_pkgs))
+            for (pkg in found) {
+              message(sprintf(\"  ✓ %s %s\", pkg, installed[pkg, \"Version\"]))
+            }
+          '"
 
