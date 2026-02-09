@@ -58,6 +58,14 @@ jobs:
         env:
           DOTNET_ROOT: /usr/share/dotnet
 
+      - name: Capture system requirements (diff of installed apt packages)
+        run: |
+          dpkg-query -W -f='${Package}\n' | sort > /tmp/packages-after.txt
+          # Get packages that were added during R package installation
+          comm -13 /tmp/packages-before.txt /tmp/packages-after.txt > sysreqs.txt
+          echo "=== System requirements installed by pak ==="
+          cat sysreqs.txt
+
       - name: Create renv.lock file
         run: |
           Rscript -e "
