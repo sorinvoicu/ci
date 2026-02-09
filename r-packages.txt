@@ -1,0 +1,7 @@
+Open-Systems-Pharmacology/rSharp
+Open-Systems-Pharmacology/OSPSuite-R
+Open-Systems-Pharmacology/TLF-Library
+Open-Systems-Pharmacology/OSPSuite.RUtils
+Open-Systems-Pharmacology/OSPSuite.ParameterIdentification
+Open-Systems-Pharmacology/OSPSuite.Addins
+esqLABS/esqlabsR
