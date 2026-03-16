@@ -49,7 +49,7 @@ jobs:
           packages <- readLines('r-packages.txt')
           packages <- packages[packages != '']
           for (pkg in packages) {
-            pkg_name <- basename(pkg)
+            pkg_name <- strsplit(basename(pkg), "@")[[1]][1]
             message('Loading: ', pkg_name)
             library(pkg_name, character.only = TRUE)
             message(pkg_name, ' loaded successfully!')
