@@ -43,6 +43,19 @@ jobs:
             pak::pak(pkg_release)
           }
 
+      - name: Verify R packages load
+        shell: Rscript {0}
+        run: |
+          packages <- readLines('r-packages.txt')
+          packages <- packages[packages != '']
+          for (pkg in packages) {
+            pkg_name <- basename(pkg)
+            message('Loading: ', pkg_name)
+            library(pkg_name, character.only = TRUE)
+            message(pkg_name, ' loaded successfully!')
+          }
+          message('All packages loaded successfully!')
+
       - name: Create renv.lock file
         shell: Rscript {0}
         run: |
