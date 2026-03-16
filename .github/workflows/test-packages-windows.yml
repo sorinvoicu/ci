@@ -19,58 +19,39 @@ jobs:
         with:
           use-public-rspm: true
 
-      - name: Setup .NET 8.0
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.0.x"
-
-      - name: Install and verify R packages
+      - name: Install system dependencies
         shell: pwsh
         run: |
-          # Debug environment
-          Write-Host "=== Environment Debug ==="
-          Write-Host "DOTNET_ROOT: $env:DOTNET_ROOT"
-          Write-Host ""
-          Write-Host "=== .NET runtimes ==="
-          dotnet --list-runtimes
-          Write-Host ""
-          Write-Host "R version:"
-          Rscript -e "R.version.string" | Write-Host
-          Write-Host ""
-          Write-Host ".NET version:"
-          dotnet --version
-          Write-Host ""
+          $deps = Get-Content system-dependencies-windows.txt | Where-Object { $_ -ne "" }
+          foreach ($dep in $deps) {
+            choco install $dep --yes --no-progress
+          }
 
-          # Set up writable R library
-          $env:R_LIBS_USER = "$PWD/R-libs"
-          New-Item -ItemType Directory -Force -Path $env:R_LIBS_USER | Out-Null
+      - name: Install pak
+        shell: Rscript {0}
+        run: |
+          install.packages('pak', repos = 'https://cloud.r-project.org/')
 
-          Write-Host "Installing pak..."
-          Rscript -e "install.packages('pak', repos='https://cloud.r-project.org/')"
+      - name: Install R packages
+        shell: Rscript {0}
+        run: |
+          packages <- readLines('r-packages.txt')
+          packages <- packages[packages != '']
+          for (pkg in packages) {
+            pkg_release <- paste0(pkg, '@*release')
+            message('Installing: ', pkg_release)
+            pak::pak(pkg_release)
+          }
 
-          Write-Host ""
-          Write-Host "Installing R packages from r-packages.txt..."
-          Rscript -e "
-            Sys.setenv(R_LIBS_USER = Sys.getenv('R_LIBS_USER'))
-            packages <- readLines('r-packages.txt')
-            packages <- packages[packages != '']
-            for (pkg in packages) {
-              pkg_release <- paste0(pkg, '@*release')
-              message('Installing: ', pkg_release)
-              pak::pak(pkg_release)
-            }
-          "
-
-          Write-Host ""
-          Write-Host "Verifying all packages load..."
-          Rscript -e "
-            packages <- readLines('r-packages.txt')
-            packages <- packages[packages != '']
-            for (pkg in packages) {
-              pkg_name <- basename(pkg)
-              message('Loading: ', pkg_name)
-              library(pkg_name, character.only = TRUE)
-              message(pkg_name, ' loaded successfully!')
-            }
-            message('All packages loaded successfully!')
-          "
+      - name: Verify R packages load
+        shell: Rscript {0}
+        run: |
+          packages <- readLines('r-packages.txt')
+          packages <- packages[packages != '']
+          for (pkg in packages) {
+            pkg_name <- basename(pkg)
+            message('Loading: ', pkg_name)
+            library(pkg_name, character.only = TRUE)
+            message(pkg_name, ' loaded successfully!')
+          }
+          message('All packages loaded successfully!')
