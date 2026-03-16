@@ -19,9 +19,6 @@ jobs:
         with:
           r-version: 'release'
 
-      - name: Setup Rtools
-        uses: r-lib/actions/setup-rtools@v2
-
       - name: Install system dependencies
         shell: pwsh
         run: |
