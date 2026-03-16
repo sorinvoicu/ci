@@ -22,7 +22,7 @@ jobs:
       - name: Install system dependencies
         shell: pwsh
         run: |
-          $deps = Get-Content system-dependencies-windows.txt | Where-Object { $_ -ne "" }
+          $deps = Get-Content system-dependencies.txt | Where-Object { $_ -ne "" }
           foreach ($dep in $deps) {
             choco install $dep --yes --no-progress
           }
