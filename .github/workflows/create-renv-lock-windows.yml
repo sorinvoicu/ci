@@ -37,10 +37,10 @@ jobs:
         shell: Rscript {0}
         run: |
           packages <- readLines('r-packages.txt')
+          packages <- packages[packages != '']
           for (pkg in packages) {
-            pkg_release <- paste0(pkg, '@*release')
-            message('Installing released version: ', pkg_release)
-            pak::pak(pkg_release)
+            message('Installing: ', pkg)
+            pak::pak(pkg)
           }
 
       - name: Verify R packages load
