@@ -1,0 +1,68 @@
+name: Create renv.lock (Windows)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-renv-lock-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup R (latest)
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+
+      - name: Setup Rtools
+        uses: r-lib/actions/setup-rtools@v2
+
+      - name: Install system dependencies
+        shell: pwsh
+        run: |
+          $deps = Get-Content system-dependencies-windows.txt | Where-Object { $_ -ne "" }
+          foreach ($dep in $deps) {
+            choco install $dep --yes --no-progress
+          }
+
+      - name: Install pak and renv
+        shell: Rscript {0}
+        run: |
+          install.packages('pak', repos = 'https://cloud.r-project.org/')
+          pak::pak('renv')
+
+      - name: Install R packages from GitHub
+        shell: Rscript {0}
+        run: |
+          packages <- readLines('r-packages.txt')
+          for (pkg in packages) {
+            pkg_release <- paste0(pkg, '@*release')
+            message('Installing released version: ', pkg_release)
+            pak::pak(pkg_release)
+          }
+
+      - name: Create renv.lock file
+        shell: Rscript {0}
+        run: |
+          lib_path <- .libPaths()[1]
+          installed_pkgs <- installed.packages(lib.loc = lib_path)[, 'Package']
+
+          exclude_pkgs <- c('renv', 'pak', 'base', 'compiler', 'datasets', 'graphics',
+                           'grDevices', 'grid', 'methods', 'parallel', 'splines',
+                           'stats', 'stats4', 'tcltk', 'tools', 'translations', 'utils')
+          pkgs_to_snapshot <- setdiff(installed_pkgs, exclude_pkgs)
+
+          renv::snapshot(
+            library = lib_path,
+            packages = pkgs_to_snapshot,
+            prompt = FALSE,
+            force = TRUE
+          )
+
+      - name: Upload renv.lock as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: renv-lock-windows
+          path: renv.lock
