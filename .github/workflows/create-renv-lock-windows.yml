@@ -56,6 +56,39 @@ jobs:
           }
           message('All packages loaded successfully!')
 
+      - name: Assess R package risk with riskmetric
+        shell: Rscript {0}
+        run: |
+          pak::pak("pharmaR/riskmetric")
+          library(riskmetric)
+
+          packages <- readLines("r-packages.txt")
+          packages <- packages[packages != ""]
+
+          pkg_names <- vapply(packages, function(pkg) {
+            pak::pkg_deps(pkg, dependencies = FALSE)$package[1]
+          }, character(1))
+
+          results <- pkg_ref(pkg_names) |>
+            pkg_assess() |>
+            pkg_score()
+
+          cat("\n=== riskmetric Risk Assessment ===\n")
+          print(results[, c("package", "pkg_score")])
+
+          summary_df <- data.frame(
+            package   = results$package,
+            risk_score = round(results$pkg_score, 4)
+          )
+          write.csv(summary_df, "riskmetric-report.csv", row.names = FALSE)
+          message("Risk report saved to riskmetric-report.csv")
+
+      - name: Upload riskmetric report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: riskmetric-report
+          path: riskmetric-report.csv
+
       - name: Create renv.lock file
         shell: Rscript {0}
         run: |
