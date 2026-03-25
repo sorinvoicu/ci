@@ -125,6 +125,5 @@ for (pkg_name in classification$intended_for_use) {
   unlink(clone_dir, recursive = TRUE)
 }
 
-writeLines(toJSON(results, pretty = TRUE, auto_unbox = TRUE),
-           con = file("validation-results.json", open = "w", encoding = "UTF-8"))
+cat(as.character(toJSON(results, pretty = TRUE, auto_unbox = TRUE)), file = "validation-results.json")
 message("\nValidation results written to validation-results.json")

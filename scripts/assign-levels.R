@@ -98,8 +98,7 @@ for (pkg in classification$imports) {
   )
 }
 
-writeLines(toJSON(assignments, pretty = TRUE, auto_unbox = TRUE),
-           con = file("level-assignments.json", open = "w", encoding = "UTF-8"))
+cat(as.character(toJSON(assignments, pretty = TRUE, auto_unbox = TRUE)), file = "level-assignments.json")
 
 # Summary
 levels <- vapply(assignments, function(x) x$level, integer(1))

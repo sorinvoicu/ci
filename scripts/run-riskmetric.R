@@ -48,6 +48,5 @@ for (i in seq_len(nrow(results))) {
   )
 }
 
-writeLines(toJSON(output, pretty = TRUE, auto_unbox = TRUE),
-           con = file("riskmetric-results.json", open = "w", encoding = "UTF-8"))
+cat(as.character(toJSON(output, pretty = TRUE, auto_unbox = TRUE)), file = "riskmetric-results.json")
 message("Riskmetric results written to riskmetric-results.json")
