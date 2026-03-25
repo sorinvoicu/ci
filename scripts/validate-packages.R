@@ -102,7 +102,7 @@ for (pkg_name in classification$intended_for_use) {
   # Coverage
   message("  Running covr...")
   cov_pct <- tryCatch({
-    cov <- package_coverage(clone_dir, quiet = TRUE)
+    cov <- package_coverage(clone_dir, quiet = TRUE, lib = .libPaths())
     as.numeric(percent_coverage(cov))
   }, error = function(e) {
     message("  Coverage failed: ", conditionMessage(e))
