@@ -1,0 +1,4 @@
+coverage_threshold: 50       # minimum test coverage % for Level 2
+riskmetric_threshold: 0.5    # maximum riskmetric score for Level 2 (0-1 scale)
+rcmdcheck_allow_warnings: true  # allow WARNINGs in R CMD check (only ERRORs fail)
+rcmdcheck_allow_notes: true     # allow NOTEs in R CMD check
