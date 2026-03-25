@@ -50,5 +50,6 @@ if (.Platform$OS.type == "windows") {
   info$chocolatey_packages <- choco_list
 }
 
-write_json(info, "system-info.json", pretty = TRUE, auto_unbox = TRUE)
+json_str <- toJSON(info, pretty = TRUE, auto_unbox = TRUE)
+writeLines(json_str, con = file("system-info.json", open = "w", encoding = "UTF-8"))
 message("System info written to system-info.json")

@@ -50,7 +50,8 @@ classification <- list(
   base = sort(base_and_rec)
 )
 
-write_json(classification, "package-classification.json", pretty = TRUE, auto_unbox = TRUE)
+writeLines(toJSON(classification, pretty = TRUE, auto_unbox = TRUE),
+           con = file("package-classification.json", open = "w", encoding = "UTF-8"))
 message("Package classification written to package-classification.json")
 message("  Intended-for-use: ", length(classification$intended_for_use))
 message("  Imports: ", length(classification$imports))
