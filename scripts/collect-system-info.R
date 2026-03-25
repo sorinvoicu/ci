@@ -36,6 +36,8 @@ info$installed_packages <- data.frame(
 if (.Platform$OS.type == "windows") {
   choco_list <- tryCatch({
     out <- system("choco list --local-only --limit-output", intern = TRUE)
+    # Strip UTF-8 BOM that Chocolatey sometimes prepends to its output
+    out <- sub("^\uFEFF", "", out)
     if (length(out) > 0) {
       parts <- strsplit(out, "\\|")
       data.frame(
@@ -50,5 +52,5 @@ if (.Platform$OS.type == "windows") {
   info$chocolatey_packages <- choco_list
 }
 
-cat(as.character(toJSON(info, pretty = TRUE, auto_unbox = TRUE)), file = "system-info.json")
+writeBin(charToRaw(enc2utf8(as.character(toJSON(info, pretty = TRUE, auto_unbox = TRUE)))), "system-info.json")
 message("System info written to system-info.json")

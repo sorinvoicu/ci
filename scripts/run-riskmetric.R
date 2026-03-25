@@ -48,5 +48,5 @@ for (i in seq_len(nrow(results))) {
   )
 }
 
-cat(as.character(toJSON(output, pretty = TRUE, auto_unbox = TRUE)), file = "riskmetric-results.json")
+writeBin(charToRaw(enc2utf8(as.character(toJSON(output, pretty = TRUE, auto_unbox = TRUE)))), "riskmetric-results.json")
 message("Riskmetric results written to riskmetric-results.json")

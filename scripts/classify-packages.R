@@ -50,7 +50,7 @@ classification <- list(
   base = sort(base_and_rec)
 )
 
-cat(as.character(toJSON(classification, pretty = TRUE, auto_unbox = TRUE)), file = "package-classification.json")
+writeBin(charToRaw(enc2utf8(as.character(toJSON(classification, pretty = TRUE, auto_unbox = TRUE)))), "package-classification.json")
 message("Package classification written to package-classification.json")
 message("  Intended-for-use: ", length(classification$intended_for_use))
 message("  Imports: ", length(classification$imports))

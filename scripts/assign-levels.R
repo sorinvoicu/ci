@@ -98,7 +98,7 @@ for (pkg in classification$imports) {
   )
 }
 
-cat(as.character(toJSON(assignments, pretty = TRUE, auto_unbox = TRUE)), file = "level-assignments.json")
+writeBin(charToRaw(enc2utf8(as.character(toJSON(assignments, pretty = TRUE, auto_unbox = TRUE)))), "level-assignments.json")
 
 # Summary
 levels <- vapply(assignments, function(x) x$level, integer(1))

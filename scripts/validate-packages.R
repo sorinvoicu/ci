@@ -125,5 +125,5 @@ for (pkg_name in classification$intended_for_use) {
   unlink(clone_dir, recursive = TRUE)
 }
 
-cat(as.character(toJSON(results, pretty = TRUE, auto_unbox = TRUE)), file = "validation-results.json")
+writeBin(charToRaw(enc2utf8(as.character(toJSON(results, pretty = TRUE, auto_unbox = TRUE)))), "validation-results.json")
 message("\nValidation results written to validation-results.json")
