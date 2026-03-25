@@ -19,6 +19,12 @@ jobs:
         with:
           r-version: 'release'
 
+      - name: Cache TinyTeX
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Roaming/TinyTeX
+          key: tinytex-${{ runner.os }}
+
       - name: Setup TinyTeX
         uses: r-lib/actions/setup-tinytex@v2
 
@@ -37,6 +43,13 @@ jobs:
           foreach ($dep in $deps) {
             choco install $dep --yes --no-progress
           }
+
+      - name: Cache R packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: r-pkgs-${{ runner.os }}-${{ hashFiles('r-packages.txt') }}
+          restore-keys: r-pkgs-${{ runner.os }}-
 
       - name: Install pak, renv, and validation tooling
         shell: Rscript {0}
