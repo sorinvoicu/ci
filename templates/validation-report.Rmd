@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 library(jsonlite)
 library(knitr)
 
-system_info <- fromJSON("system-info.json")
+# system_info <- fromJSON("system-info.json")  # temporarily disabled
 classification <- fromJSON("package-classification.json")
 validation <- fromJSON("validation-results.json")
 riskmetric_res <- fromJSON("riskmetric-results.json")
@@ -32,12 +32,14 @@ level_vec <- vapply(levels_data, function(x) x$level, integer(1))
 |------|-------|
 | **Report Date** | `r format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")` |
 | **Git Commit** | `r tryCatch(trimws(system("git rev-parse HEAD", intern = TRUE)), error = function(e) "N/A")` |
-| **R Version** | `r system_info$r_version$version_string` |
-| **Platform** | `r system_info$r_version$platform` |
+| **R Version** | `r R.version.string` |
+| **Platform** | `r R.version$platform` |
 | **Level 1 (Base)** | `r sum(level_vec == 1)` packages |
 | **Level 2 (Auto-qualified)** | `r sum(level_vec == 2)` packages |
 | **Level 3 (Manual review)** | `r sum(level_vec == 3)` packages |
 | **Vulnerabilities** | `r nrow(vuln_report)` findings |
+
+<!-- System Qualification section temporarily disabled (system-info.json BOM issue on Windows)
 
 # System Qualification
 
@@ -54,6 +56,8 @@ level_vec <- vapply(levels_data, function(x) x$level, integer(1))
 ```{r}
 cat(paste(system_info$lib_paths, collapse = "\n"))
 ```
+
+-->
 
 # Package Classification
 

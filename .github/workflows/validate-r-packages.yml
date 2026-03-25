@@ -83,6 +83,7 @@ jobs:
           message('All packages loaded successfully!')
 
       - name: Collect system info
+        if: false  # temporarily disabled
         shell: Rscript {0}
         run: source("scripts/collect-system-info.R")
 
@@ -141,7 +142,7 @@ jobs:
           name: validation-artifacts
           path: |
             validation-report.html
-            system-info.json
+            # system-info.json  # temporarily disabled
             package-classification.json
             validation-results.json
             riskmetric-results.json
