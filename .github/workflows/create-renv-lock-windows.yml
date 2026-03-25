@@ -2,9 +2,6 @@ name: Create renv.lock (Windows)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   create-renv-lock-windows:
