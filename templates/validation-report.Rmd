@@ -16,9 +16,9 @@ library(knitr)
 
 # system_info <- fromJSON("system-info.json")  # temporarily disabled
 classification <- fromJSON("package-classification.json")
-validation <- fromJSON("validation-results.json")
-riskmetric_res <- fromJSON("riskmetric-results.json")
-levels_data <- fromJSON("level-assignments.json")
+validation <- fromJSON("validation-results.json", simplifyDataFrame = FALSE)
+riskmetric_res <- fromJSON("riskmetric-results.json", simplifyDataFrame = FALSE)
+levels_data <- fromJSON("level-assignments.json", simplifyDataFrame = FALSE)
 vuln_report <- tryCatch(read.csv("vulnerability-report.csv", stringsAsFactors = FALSE),
                         error = function(e) data.frame())
 
