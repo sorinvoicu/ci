@@ -8,6 +8,7 @@ message("Rendering validation report...")
 render(
   input = "templates/validation-report.Rmd",
   output_file = file.path(getwd(), "validation-report.html"),
+  knit_root_dir = getwd(),
   output_format = html_document(
     toc = TRUE,
     toc_depth = 3,

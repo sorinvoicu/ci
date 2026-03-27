@@ -57,7 +57,7 @@ jobs:
           install.packages('pak', repos = 'https://cloud.r-project.org/')
           pak::pak('renv')
           pak::pak(c('rcmdcheck', 'covr', 'pharmaR/riskmetric', 'oysteR',
-                     'rmarkdown', 'knitr', 'yaml', 'jsonlite'))
+                     'rmarkdown', 'knitr', 'yaml', 'jsonlite', 'vdiffr'))
 
       - name: Install R packages from GitHub
         shell: Rscript {0}
