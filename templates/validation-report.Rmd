@@ -99,10 +99,16 @@ for (pkg_name in classification$intended_for_use) {
   cat("| **Git SHA** | ", if (!is.null(v$git_sha) && !is.na(v$git_sha)) v$git_sha else "N/A", " |\n")
   cat("| **R CMD check** | ", if (!is.null(v$rcmdcheck)) v$rcmdcheck else "N/A", " |\n")
   cat("| **Test Coverage** | ",
-      if (!is.null(v$coverage_pct) && !is.na(v$coverage_pct)) paste0(round(v$coverage_pct, 1), "%") else "N/A",
+      {
+        cov <- suppressWarnings(tryCatch(as.numeric(v$coverage_pct), error = function(e) NA_real_))
+        if (length(cov) == 1L && !is.na(cov)) paste0(round(cov, 1), "%") else "N/A"
+      },
       " |\n")
   cat("| **Riskmetric Score** | ",
-      if (!is.null(r$riskmetric_score) && !is.na(r$riskmetric_score)) round(r$riskmetric_score, 4) else "N/A",
+      {
+        rs <- suppressWarnings(tryCatch(as.numeric(r$riskmetric_score), error = function(e) NA_real_))
+        if (length(rs) == 1L && !is.na(rs)) round(rs, 4) else "N/A"
+      },
       " |\n")
   cat("| **Assigned Level** | ",
       if (!is.null(l$level)) l$level else "N/A",
@@ -132,7 +138,10 @@ import_rows <- lapply(classification$imports, function(pkg) {
   l <- levels_data[[pkg]]
   data.frame(
     Package = pkg,
-    Riskmetric_Score = if (!is.null(r$riskmetric_score) && !is.na(r$riskmetric_score)) round(r$riskmetric_score, 4) else NA,
+    Riskmetric_Score = {
+      rs <- suppressWarnings(tryCatch(as.numeric(r$riskmetric_score), error = function(e) NA_real_))
+      if (length(rs) == 1L && !is.na(rs)) round(rs, 4) else NA_real_
+    },
     Level = if (!is.null(l$level)) l$level else NA,
     stringsAsFactors = FALSE
   )
