@@ -45,15 +45,15 @@ level_vec <- vapply(levels_data, function(x) x$level, integer(1))
 
 ## R Environment
 
-- **R Version**: `r system_info$r_version$version_string`
-- **Platform**: `r system_info$r_version$platform`
-- **OS**: `r system_info$os$sysname` `r system_info$os$release`
-- **.NET SDK**: `r system_info$dotnet_version`
-- **Locale**: `r system_info$locale`
+- **R Version**: N/A
+- **Platform**: N/A
+- **OS**: N/A
+- **.NET SDK**: N/A
+- **Locale**: N/A
 
 ## Library Paths
 
-```{r}
+```{r eval=FALSE}
 cat(paste(system_info$lib_paths, collapse = "\n"))
 ```
 
