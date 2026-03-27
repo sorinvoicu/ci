@@ -62,9 +62,13 @@ jobs:
       - name: Install R packages from GitHub
         shell: Rscript {0}
         run: |
+          if (!requireNamespace('remotes', quietly = TRUE)) install.packages('remotes')
           packages <- readLines('r-packages.txt')
           packages <- packages[packages != '']
-          pak::pak(packages)
+          for (pkg in packages) {
+            message('Installing: ', pkg)
+            remotes::install_github(pkg, upgrade = 'never')
+          }
 
       - name: Verify R packages load
         shell: Rscript {0}
