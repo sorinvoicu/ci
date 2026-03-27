@@ -64,10 +64,7 @@ jobs:
         run: |
           packages <- readLines('r-packages.txt')
           packages <- packages[packages != '']
-          for (pkg in packages) {
-            message('Installing: ', pkg)
-            pak::pak(pkg)
-          }
+          pak::pak(packages)
 
       - name: Verify R packages load
         shell: Rscript {0}
