@@ -23,9 +23,11 @@ jobs:
       - name: Setup TinyTeX
         uses: r-lib/actions/setup-tinytex@v2
 
-      - name: Update TinyTeX packages
-        shell: Rscript {0}
-        run: tinytex::tlmgr_update()
+      - name: Update TinyTeX and rebuild formats
+        shell: pwsh
+        run: |
+          tlmgr update --self --all
+          fmtutil-sys --all
 
       - name: Assert R package cache hit
         if: steps.r-env.outputs.cache-hit != 'true'
