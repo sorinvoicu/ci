@@ -14,6 +14,7 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       GITHUB_TOKEN: ${{ github.token }}
+      CACHE_VERSION: ${{ vars.CACHE_VERSION || 'v1' }}
 
     outputs:
       packages: ${{ steps.pkg-list.outputs.packages }}
@@ -60,7 +61,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.R_LIBS_USER }}
-          key: r-pkgs-${{ runner.os }}-${{ vars.CACHE_VERSION || 'v1' }}-${{ hashFiles('r-packages.txt') }}
+          key: r-pkgs-${{ runner.os }}-${{ env.CACHE_VERSION }}-${{ hashFiles('r-packages.txt') }}
 
       - name: Collect system info
         shell: Rscript {0}
