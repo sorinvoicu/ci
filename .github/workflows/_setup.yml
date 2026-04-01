@@ -19,6 +19,9 @@ jobs:
       packages: ${{ steps.pkg-list.outputs.packages }}
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup R environment
         id: r-env
         uses: ./.github/actions/setup-r-environment
