@@ -22,7 +22,7 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       GITHUB_TOKEN: ${{ github.token }}
-      CACHE_VERSION: ${{ vars.CACHE_VERSION || 'v1' }}
+      CACHE_VERSION: ${{ vars.CACHE_VERSION || 'v2' }}
 
     steps:
       - name: Checkout repository
