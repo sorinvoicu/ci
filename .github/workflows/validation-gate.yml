@@ -1,0 +1,230 @@
+name: Validation Gate (PR)
+
+on:
+  pull_request:
+    paths:
+      - 'r-packages.txt'
+      - 'validation-thresholds.yml'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.diff.outputs.has_changes }}
+      changed_packages: ${{ steps.diff.outputs.changed_packages }}
+      changed_names: ${{ steps.diff.outputs.changed_names }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed packages
+        id: diff
+        shell: bash
+        run: |
+          git show origin/${{ github.base_ref }}:r-packages.txt > /tmp/base-packages.txt 2>/dev/null || touch /tmp/base-packages.txt
+
+          added=$(comm -13 <(sort /tmp/base-packages.txt) <(sort r-packages.txt) | grep -v '^$' || true)
+          removed=$(comm -23 <(sort /tmp/base-packages.txt) <(sort r-packages.txt) | grep -v '^$' || true)
+
+          echo "Added/changed packages:"
+          echo "$added"
+          echo "Removed packages:"
+          echo "$removed"
+
+          if [ -z "$added" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "changed_packages=[]" >> "$GITHUB_OUTPUT"
+            echo "changed_names=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+
+          # Build JSON array [{name, ref}] and comma-separated names
+          # We resolve package names using pak-style: take the component after the last '/'
+          # and before '@' as the package name (accurate for OSP packages; full R name resolution
+          # happens inside the reusable workflows via classify-packages.R)
+          packages_json="["
+          names_csv=""
+          first=true
+          while IFS= read -r ref; do
+            [ -z "$ref" ] && continue
+            # Extract name: last path component before '@'
+            name=$(echo "$ref" | sed 's|.*/||; s|@.*||')
+            if [ "$first" = true ]; then
+              first=false
+            else
+              packages_json="$packages_json,"
+              names_csv="$names_csv,"
+            fi
+            packages_json="${packages_json}{\"name\":\"${name}\",\"ref\":\"${ref}\"}"
+            names_csv="${names_csv}${name}"
+          done <<< "$added"
+          packages_json="${packages_json}]"
+
+          echo "changed_packages=${packages_json}" >> "$GITHUB_OUTPUT"
+          echo "changed_names=${names_csv}" >> "$GITHUB_OUTPUT"
+
+  setup:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    uses: ./.github/workflows/_setup.yml
+    secrets: inherit
+
+  validate:
+    needs: [detect-changes, setup]
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.detect-changes.outputs.changed_packages) }}
+      fail-fast: false
+    uses: ./.github/workflows/_validate-package.yml
+    with:
+      package_name: ${{ matrix.package.name }}
+      package_ref: ${{ matrix.package.ref }}
+    secrets: inherit
+
+  riskmetric:
+    needs: [detect-changes, setup]
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    uses: ./.github/workflows/_riskmetric.yml
+    with:
+      target_packages: ${{ needs.detect-changes.outputs.changed_names }}
+    secrets: inherit
+
+  gate-report:
+    needs: [detect-changes, validate, riskmetric]
+    if: always() && needs.detect-changes.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download per-package validation artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: validation-*
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Download riskmetric artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: riskmetric-artifacts
+        continue-on-error: true
+
+      - name: Build gate summary
+        id: summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const yaml = require('js-yaml');
+
+            // Load thresholds
+            let thresholds = { coverage_threshold: 50, riskmetric_threshold: 0.5 };
+            try {
+              const raw = fs.readFileSync('validation-thresholds.yml', 'utf8');
+              thresholds = yaml.load(raw);
+            } catch (e) {
+              core.warning('Could not read validation-thresholds.yml, using defaults');
+            }
+
+            // Collect per-package validation results
+            const valFiles = fs.readdirSync('.').filter(f => /^validation-.+\.json$/.test(f));
+            const validationResults = {};
+            for (const f of valFiles) {
+              try {
+                const data = JSON.parse(fs.readFileSync(f, 'utf8'));
+                Object.assign(validationResults, data);
+              } catch (e) {
+                core.warning(`Could not parse ${f}: ${e.message}`);
+              }
+            }
+
+            // Load riskmetric results
+            let riskResults = {};
+            try {
+              riskResults = JSON.parse(fs.readFileSync('riskmetric-results.json', 'utf8'));
+            } catch (e) {
+              core.warning('riskmetric-results.json not found or unreadable');
+            }
+
+            // Build summary table
+            const changedPackages = JSON.parse('${{ needs.detect-changes.outputs.changed_packages }}');
+            const lines = [
+              '## Validation Gate Results',
+              '',
+              '| Package | R CMD check | Coverage | Riskmetric | Level |',
+              '|---------|-------------|----------|------------|-------|',
+            ];
+
+            let hasErrors = false;
+
+            for (const { name } of changedPackages) {
+              const val = validationResults[name] || {};
+              const risk = riskResults[name] || {};
+
+              const checkStatus = val.rcmdcheck || 'N/A';
+              const covPct = val.coverage_pct != null ? `${val.coverage_pct.toFixed(1)}%` : 'N/A';
+              const riskScore = risk.riskmetric_score != null ? risk.riskmetric_score.toFixed(4) : 'N/A';
+
+              const checkIcon = { PASS: '✅', WARNING: '⚠️', NOTE: 'ℹ️', ERROR: '❌' }[checkStatus] || '❓';
+              if (checkStatus === 'ERROR') hasErrors = true;
+
+              const hasCov = val.coverage_pct != null && val.coverage_pct >= thresholds.coverage_threshold;
+              const hasRisk = risk.riskmetric_score != null && risk.riskmetric_score <= thresholds.riskmetric_threshold;
+              const level = hasCov && hasRisk ? 2 : 3;
+
+              lines.push(`| ${name} | ${checkIcon} ${checkStatus} | ${covPct} | ${riskScore} | ${level} |`);
+            }
+
+            if (hasErrors) {
+              lines.push('', '❌ **R CMD check errors detected — this gate will fail.**');
+            }
+
+            const body = lines.join('\n');
+            core.setOutput('summary', body);
+            core.setOutput('has_errors', hasErrors ? 'true' : 'false');
+
+      - name: Post PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = '<!-- validation-gate-comment -->';
+            const body = marker + '\n' + `${{ steps.summary.outputs.summary }}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
+
+      - name: Fail if R CMD check errors detected
+        if: steps.summary.outputs.has_errors == 'true'
+        run: |
+          echo "Validation gate FAILED: R CMD check errors detected"
+          exit 1

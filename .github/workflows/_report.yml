@@ -1,0 +1,140 @@
+name: _Report (assign levels + generate report + renv.lock)
+
+on:
+  workflow_call:
+    secrets:
+      GITHUB_TOKEN:
+        required: false
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Setup R environment
+        id: r-env
+        uses: ./.github/actions/setup-r-environment
+
+      - name: Install R packages from GitHub (cache miss)
+        if: steps.r-env.outputs.cache-hit != 'true'
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+        shell: Rscript {0}
+        run: |
+          if (!requireNamespace('remotes', quietly = TRUE)) install.packages('remotes')
+          packages <- readLines('r-packages.txt')
+          packages <- packages[packages != '']
+          for (pkg in packages) {
+            message('Installing: ', pkg)
+            remotes::install_github(pkg, upgrade = 'never')
+          }
+
+      - name: Download setup artifacts
+        id: dl-setup
+        uses: actions/download-artifact@v4
+        with:
+          name: setup-artifacts
+        continue-on-error: true
+
+      - name: Classify packages (fallback if artifact unavailable)
+        if: steps.dl-setup.outcome == 'failure'
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+        shell: Rscript {0}
+        run: source("scripts/classify-packages.R")
+
+      - name: Download riskmetric artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: riskmetric-artifacts
+        continue-on-error: true
+
+      - name: Download scan artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: scan-artifacts
+        continue-on-error: true
+
+      - name: Download all per-package validation artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: validation-*
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Merge per-package validation results
+        shell: Rscript {0}
+        run: |
+          library(jsonlite)
+
+          val_files <- list.files(pattern = "^validation-.+\\.json$")
+          message("Found ", length(val_files), " per-package validation file(s): ",
+                  paste(val_files, collapse = ", "))
+
+          if (length(val_files) > 0) {
+            all_results <- list()
+            for (f in val_files) {
+              pkg_results <- fromJSON(f, simplifyVector = FALSE)
+              all_results <- c(all_results, pkg_results)
+            }
+            writeBin(
+              charToRaw(enc2utf8(as.character(toJSON(all_results, pretty = TRUE, auto_unbox = TRUE)))),
+              "validation-results.json"
+            )
+            message("Merged into validation-results.json")
+          } else if (!file.exists("validation-results.json")) {
+            stop("No validation results found (no per-package files and no validation-results.json)")
+          }
+
+      - name: Assign validation levels
+        shell: Rscript {0}
+        run: source("scripts/assign-levels.R")
+
+      - name: Capture session info
+        shell: Rscript {0}
+        run: |
+          si <- sessionInfo()
+          writeLines(capture.output(print(si)), "session-info.txt")
+          message("Session info captured")
+
+      - name: Generate validation report
+        shell: Rscript {0}
+        run: source("scripts/generate-report.R")
+
+      - name: Create renv.lock
+        shell: Rscript {0}
+        run: |
+          lib_path <- .libPaths()[1]
+          installed_pkgs <- installed.packages(lib.loc = lib_path)[, 'Package']
+
+          exclude_pkgs <- c('renv', 'pak', 'base', 'compiler', 'datasets', 'graphics',
+                           'grDevices', 'grid', 'methods', 'parallel', 'splines',
+                           'stats', 'stats4', 'tcltk', 'tools', 'translations', 'utils')
+          pkgs_to_snapshot <- setdiff(installed_pkgs, exclude_pkgs)
+
+          renv::snapshot(
+            library = lib_path,
+            packages = pkgs_to_snapshot,
+            prompt = FALSE,
+            force = TRUE
+          )
+
+      - name: Upload validation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-artifacts
+          path: |
+            validation-report.html
+            system-info.json
+            package-classification.json
+            validation-results.json
+            riskmetric-results.json
+            vulnerability-report.csv
+            level-assignments.json
+            session-info.txt
+            renv.lock

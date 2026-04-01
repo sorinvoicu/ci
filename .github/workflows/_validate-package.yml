@@ -1,0 +1,80 @@
+name: _Validate Package (R CMD check + coverage)
+
+on:
+  workflow_call:
+    inputs:
+      package_name:
+        description: "Package name (e.g. rSharp)"
+        type: string
+        required: true
+      package_ref:
+        description: "GitHub ref (e.g. Open-Systems-Pharmacology/rSharp@v1.1.2)"
+        type: string
+        required: true
+    secrets:
+      GITHUB_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: "Package name (e.g. rSharp)"
+        type: string
+        required: true
+      package_ref:
+        description: "GitHub ref (e.g. Open-Systems-Pharmacology/rSharp@v1.1.2)"
+        type: string
+        required: true
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Setup R environment
+        id: r-env
+        uses: ./.github/actions/setup-r-environment
+
+      - name: Install R packages from GitHub (cache miss)
+        if: steps.r-env.outputs.cache-hit != 'true'
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+        shell: Rscript {0}
+        run: |
+          if (!requireNamespace('remotes', quietly = TRUE)) install.packages('remotes')
+          packages <- readLines('r-packages.txt')
+          packages <- packages[packages != '']
+          for (pkg in packages) {
+            message('Installing: ', pkg)
+            remotes::install_github(pkg, upgrade = 'never')
+          }
+
+      - name: Download setup artifacts
+        id: dl-setup
+        uses: actions/download-artifact@v4
+        with:
+          name: setup-artifacts
+        continue-on-error: true
+
+      - name: Classify packages (fallback if artifact unavailable)
+        if: steps.dl-setup.outcome == 'failure'
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+        shell: Rscript {0}
+        run: source("scripts/classify-packages.R")
+
+      - name: Validate package
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_PACKAGE: ${{ inputs.package_name }}
+        shell: Rscript {0}
+        run: source("scripts/validate-packages.R")
+
+      - name: Upload validation artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-${{ inputs.package_name }}
+          path: validation-${{ inputs.package_name }}.json

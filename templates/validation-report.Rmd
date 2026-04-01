@@ -1,0 +1,193 @@
+---
+title: "R Package Validation Report"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(jsonlite)
+library(knitr)
+
+# system_info <- fromJSON("system-info.json")  # temporarily disabled
+classification <- fromJSON("package-classification.json")
+validation <- fromJSON("validation-results.json", simplifyDataFrame = FALSE)
+riskmetric_res <- fromJSON("riskmetric-results.json", simplifyDataFrame = FALSE)
+levels_data <- fromJSON("level-assignments.json", simplifyDataFrame = FALSE)
+vuln_report <- tryCatch(read.csv("vulnerability-report.csv", stringsAsFactors = FALSE),
+                        error = function(e) data.frame())
+
+# Helper to extract level counts
+level_vec <- vapply(levels_data, function(x) x$level, integer(1))
+```
+
+# Executive Summary
+
+| Item | Value |
+|------|-------|
+| **Report Date** | `r format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z")` |
+| **Git Commit** | `r tryCatch(trimws(system("git rev-parse HEAD", intern = TRUE)), error = function(e) "N/A")` |
+| **R Version** | `r R.version.string` |
+| **Platform** | `r R.version$platform` |
+| **Level 1 (Base)** | `r sum(level_vec == 1)` packages |
+| **Level 2 (Auto-qualified)** | `r sum(level_vec == 2)` packages |
+| **Level 3 (Manual review)** | `r sum(level_vec == 3)` packages |
+| **Vulnerabilities** | `r nrow(vuln_report)` findings |
+
+<!-- System Qualification section temporarily disabled (system-info.json BOM issue on Windows)
+
+# System Qualification
+
+## R Environment
+
+- **R Version**: N/A
+- **Platform**: N/A
+- **OS**: N/A
+- **.NET SDK**: N/A
+- **Locale**: N/A
+
+## Library Paths
+
+```{r eval=FALSE}
+cat(paste(system_info$lib_paths, collapse = "\n"))
+```
+
+-->
+
+# Package Classification
+
+## Intended-for-Use (`r length(classification$intended_for_use)` packages)
+
+These packages are directly used in analyses and undergo full validation (R CMD check + coverage + riskmetric).
+
+```{r}
+kable(data.frame(Package = classification$intended_for_use))
+```
+
+## Import Packages (`r length(classification$imports)` packages)
+
+These are transitive dependencies. They receive riskmetric scoring but not full R CMD check or coverage analysis.
+
+```{r}
+if (length(classification$imports) > 0) {
+  kable(data.frame(Package = classification$imports))
+} else {
+  cat("No import packages identified.")
+}
+```
+
+# Per-Package Validation Results
+
+Detailed results for each intended-for-use package.
+
+```{r results='asis'}
+for (pkg_name in classification$intended_for_use) {
+  cat("\n## ", pkg_name, "\n\n")
+
+  v <- validation[[pkg_name]]
+  r <- riskmetric_res[[pkg_name]]
+  l <- levels_data[[pkg_name]]
+
+  cat("| Attribute | Value |\n")
+  cat("|-----------|-------|\n")
+  cat("| **Source** | ", if (!is.null(v$source)) v$source else "N/A", " |\n")
+  cat("| **Git SHA** | ", if (!is.null(v$git_sha) && !is.na(v$git_sha)) v$git_sha else "N/A", " |\n")
+  cat("| **R CMD check** | ", if (!is.null(v$rcmdcheck)) v$rcmdcheck else "N/A", " |\n")
+  cat("| **Test Coverage** | ",
+      {
+        cov <- suppressWarnings(tryCatch(as.numeric(v$coverage_pct), error = function(e) NA_real_))
+        if (length(cov) == 1L && !is.na(cov)) paste0(round(cov, 1), "%") else "N/A"
+      },
+      " |\n")
+  cat("| **Riskmetric Score** | ",
+      {
+        rs <- suppressWarnings(tryCatch(as.numeric(r$riskmetric_score), error = function(e) NA_real_))
+        if (length(rs) == 1L && !is.na(rs)) round(rs, 4) else "N/A"
+      },
+      " |\n")
+  cat("| **Assigned Level** | ",
+      if (!is.null(l$level)) l$level else "N/A",
+      " |\n")
+  cat("| **Level Reason** | ",
+      if (!is.null(l$reason)) l$reason else "N/A",
+      " |\n")
+  cat("\n")
+
+  # R CMD check details
+  if (!is.null(v$rcmdcheck_errors) && length(v$rcmdcheck_errors) > 0) {
+    cat("**Errors:**\n\n```\n", paste(v$rcmdcheck_errors, collapse = "\n"), "\n```\n\n")
+  }
+  if (!is.null(v$rcmdcheck_warnings) && length(v$rcmdcheck_warnings) > 0) {
+    cat("**Warnings:**\n\n```\n", paste(v$rcmdcheck_warnings, collapse = "\n"), "\n```\n\n")
+  }
+}
+```
+
+# Import Packages Summary
+
+Riskmetric scores for import (transitive dependency) packages.
+
+```{r}
+import_rows <- lapply(classification$imports, function(pkg) {
+  r <- riskmetric_res[[pkg]]
+  l <- levels_data[[pkg]]
+  data.frame(
+    Package = pkg,
+    Riskmetric_Score = {
+      rs <- suppressWarnings(tryCatch(as.numeric(r$riskmetric_score), error = function(e) NA_real_))
+      if (length(rs) == 1L && !is.na(rs)) round(rs, 4) else NA_real_
+    },
+    Level = if (!is.null(l$level)) l$level else NA,
+    stringsAsFactors = FALSE
+  )
+})
+
+if (length(import_rows) > 0) {
+  import_df <- do.call(rbind, import_rows)
+  kable(import_df, row.names = FALSE)
+} else {
+  cat("No import packages to display.")
+}
+```
+
+# Vulnerability Scan Results
+
+```{r}
+if (nrow(vuln_report) > 0) {
+  kable(vuln_report)
+} else {
+  cat("No vulnerabilities detected.")
+}
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```
+
+# Reproducibility Manifest
+
+```{r}
+manifest_rows <- lapply(classification$intended_for_use, function(pkg) {
+  v <- validation[[pkg]]
+  data.frame(
+    Package = pkg,
+    Source = if (!is.null(v$source)) v$source else "N/A",
+    Git_SHA = if (!is.null(v$git_sha) && !is.na(v$git_sha)) v$git_sha else "N/A",
+    stringsAsFactors = FALSE
+  )
+})
+
+if (length(manifest_rows) > 0) {
+  manifest_df <- do.call(rbind, manifest_rows)
+  kable(manifest_df, row.names = FALSE)
+} else {
+  cat("No manifest entries.")
+}
+```

@@ -1,0 +1,39 @@
+name: Validate R Packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  setup:
+    uses: ./.github/workflows/_setup.yml
+    secrets: inherit
+
+  validate:
+    needs: setup
+    strategy:
+      matrix:
+        package: ${{ fromJson(needs.setup.outputs.packages) }}
+      fail-fast: false
+    uses: ./.github/workflows/_validate-package.yml
+    with:
+      package_name: ${{ matrix.package.name }}
+      package_ref: ${{ matrix.package.ref }}
+    secrets: inherit
+
+  riskmetric:
+    needs: setup
+    uses: ./.github/workflows/_riskmetric.yml
+    secrets: inherit
+
+  scan:
+    needs: setup
+    uses: ./.github/workflows/_scan-vulnerabilities.yml
+    secrets: inherit
+
+  report:
+    needs: [validate, riskmetric, scan]
+    uses: ./.github/workflows/_report.yml
+    secrets: inherit

@@ -1,0 +1,98 @@
+name: _Setup (install packages + classify)
+
+on:
+  workflow_call:
+    outputs:
+      packages:
+        description: "JSON array [{name, ref}] of intended-for-use packages — use as matrix input"
+        value: ${{ jobs.setup.outputs.packages }}
+    secrets:
+      GITHUB_TOKEN:
+        required: false
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    outputs:
+      packages: ${{ steps.pkg-list.outputs.packages }}
+
+    steps:
+      - name: Setup R environment
+        id: r-env
+        uses: ./.github/actions/setup-r-environment
+
+      - name: Install R packages from GitHub (cache miss)
+        if: steps.r-env.outputs.cache-hit != 'true'
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+        shell: Rscript {0}
+        run: |
+          if (!requireNamespace('remotes', quietly = TRUE)) install.packages('remotes')
+          packages <- readLines('r-packages.txt')
+          packages <- packages[packages != '']
+          for (pkg in packages) {
+            message('Installing: ', pkg)
+            remotes::install_github(pkg, upgrade = 'never')
+          }
+
+      - name: Verify packages load
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+        shell: Rscript {0}
+        run: |
+          packages <- readLines('r-packages.txt')
+          packages <- packages[packages != '']
+          for (pkg in packages) {
+            pkg_name <- pak::pkg_deps(pkg, dependencies = FALSE)$package[1]
+            message('Loading: ', pkg_name)
+            library(pkg_name, character.only = TRUE)
+            message(pkg_name, ' loaded successfully!')
+          }
+          message('All packages loaded successfully!')
+
+      - name: Save R package cache
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: r-pkgs-${{ runner.os }}-${{ hashFiles('r-packages.txt') }}
+
+      - name: Collect system info
+        shell: Rscript {0}
+        run: source("scripts/collect-system-info.R")
+
+      - name: Classify packages
+        env:
+          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+        shell: Rscript {0}
+        run: source("scripts/classify-packages.R")
+
+      - name: Build package matrix output
+        id: pkg-list
+        shell: pwsh
+        run: |
+          $cls = Get-Content "package-classification.json" | ConvertFrom-Json
+          $refs = $cls.intended_for_use_refs
+
+          $packages = @()
+          foreach ($name in $cls.intended_for_use) {
+            $ref = $refs.$name
+            if ($ref) {
+              $packages += @{ name = $name; ref = $ref }
+            }
+          }
+
+          $json = $packages | ConvertTo-Json -Compress -AsArray
+          "packages=$json" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+
+      - name: Upload setup artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-artifacts
+          path: |
+            package-classification.json
+            system-info.json
