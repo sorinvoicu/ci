@@ -9,6 +9,8 @@ on:
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     outputs:
       has_changes: ${{ steps.diff.outputs.has_changes }}
       changed_packages: ${{ steps.diff.outputs.changed_packages }}
@@ -99,6 +101,8 @@ jobs:
     needs: [detect-changes, validate, riskmetric]
     if: always() && needs.detect-changes.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout repository

@@ -21,7 +21,7 @@ runs:
       uses: r-lib/actions/setup-pandoc@v2
 
     - name: Setup .NET 8 SDK
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: '8.0.x'
 
@@ -35,7 +35,7 @@ runs:
 
     - name: Restore R package cache
       id: r-cache
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         path: ${{ env.R_LIBS_USER }}
         key: r-pkgs-${{ runner.os }}-${{ env.CACHE_VERSION }}-${{ hashFiles('r-packages.txt') }}

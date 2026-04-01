@@ -58,7 +58,7 @@ jobs:
 
       - name: Save R package cache
         if: steps.r-env.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ env.R_LIBS_USER }}
           key: r-pkgs-${{ runner.os }}-${{ env.CACHE_VERSION }}-${{ hashFiles('r-packages.txt') }}
