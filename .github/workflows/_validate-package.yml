@@ -11,9 +11,6 @@ on:
         description: "GitHub ref (e.g. Open-Systems-Pharmacology/rSharp@v1.1.2)"
         type: string
         required: true
-    secrets:
-      GITHUB_TOKEN:
-        required: false
   workflow_dispatch:
     inputs:
       package_name:
@@ -30,7 +27,7 @@ jobs:
     runs-on: windows-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ github.token }}
 
     steps:
       - name: Setup R environment

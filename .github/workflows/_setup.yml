@@ -6,9 +6,6 @@ on:
       packages:
         description: "JSON array [{name, ref}] of intended-for-use packages — use as matrix input"
         value: ${{ jobs.setup.outputs.packages }}
-    secrets:
-      GITHUB_TOKEN:
-        required: false
   workflow_dispatch:
 
 jobs:
@@ -16,7 +13,7 @@ jobs:
     runs-on: windows-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ github.token }}
 
     outputs:
       packages: ${{ steps.pkg-list.outputs.packages }}
