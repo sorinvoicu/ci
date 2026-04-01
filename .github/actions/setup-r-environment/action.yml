@@ -50,5 +50,5 @@ runs:
         pak::pak(c(
           'rcmdcheck', 'covr', 'pharmaR/riskmetric', 'oysteR',
           'rmarkdown', 'knitr', 'yaml', 'jsonlite', 'remotes',
-          'renv', 'vdiffr', 'mockthat'
+          'renv', 'vdiffr', 'mockthat', 'tinytex', 'kableExtra'
         ))

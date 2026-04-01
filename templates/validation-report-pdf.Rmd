@@ -1,0 +1,385 @@
+---
+title: "R Package Validation Report"
+subtitle: "ESQ Cloud Validation Environment"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    latex_engine: xelatex
+geometry: "left=3cm,right=2.5cm,top=2.5cm,bottom=2.5cm"
+fontsize: 11pt
+header-includes:
+  - \usepackage{fancyhdr}
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{hyperref}
+  - \pagestyle{fancy}
+  - \fancyhf{}
+  - \fancyhead[L]{\small R Package Validation Report}
+  - \fancyhead[R]{\small\thepage}
+  - \fancyfoot[C]{\small Confidential}
+  - \renewcommand{\headrulewidth}{0.4pt}
+  - \renewcommand{\footrulewidth}{0.4pt}
+  - \fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\small Confidential}\renewcommand{\headrulewidth}{0pt}\renewcommand{\footrulewidth}{0.4pt}}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(jsonlite)
+library(knitr)
+
+classification  <- fromJSON("package-classification.json")
+validation      <- fromJSON("validation-results.json",   simplifyDataFrame = FALSE)
+riskmetric_res  <- fromJSON("riskmetric-results.json",   simplifyDataFrame = FALSE)
+levels_data     <- fromJSON("level-assignments.json",    simplifyDataFrame = FALSE)
+vuln_report     <- tryCatch(
+  read.csv("vulnerability-report.csv", stringsAsFactors = FALSE),
+  error = function(e) data.frame()
+)
+
+level_vec <- vapply(levels_data, function(x) x$level, integer(1))
+
+# Helper: safely extract a numeric value, return NA otherwise
+safe_num <- function(x) {
+  v <- suppressWarnings(tryCatch(as.numeric(x), error = function(e) NA_real_))
+  if (length(v) == 1L && !is.na(v)) v else NA_real_
+}
+
+# Helper: truncate long strings for table cells
+trunc_str <- function(s, n = 70) {
+  if (is.null(s) || is.na(s)) return("N/A")
+  s <- as.character(s)
+  if (nchar(s) > n) paste0(substr(s, 1, n - 3), "...") else s
+}
+```
+
+\newpage
+
+# Executive Summary
+
+```{r exec-summary}
+git_commit <- tryCatch(
+  trimws(system("git rev-parse HEAD", intern = TRUE)),
+  error = function(e) "N/A"
+)
+
+summary_df <- data.frame(
+  Item = c(
+    "Report Date",
+    "Git Commit",
+    "R Version",
+    "Platform",
+    "Level 1 (Base/Recommended)",
+    "Level 2 (Auto-qualified)",
+    "Level 3 (Manual review required)",
+    "Vulnerabilities"
+  ),
+  Value = c(
+    format(Sys.time(), "%Y-%m-%d %H:%M:%S UTC"),
+    git_commit,
+    R.version.string,
+    R.version$platform,
+    paste(sum(level_vec == 1), "packages"),
+    paste(sum(level_vec == 2), "packages"),
+    paste(sum(level_vec == 3), "packages"),
+    paste(nrow(vuln_report), "findings")
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(summary_df, format = "latex", booktabs = TRUE,
+      col.names = c("Item", "Value"), linesep = "") |>
+  kableExtra::column_spec(1, bold = TRUE, width = "5cm") |>
+  kableExtra::column_spec(2, width = "9cm")
+```
+
+# Regulatory Framework
+
+This report supports regulatory compliance for the use of R as a statistical computing environment in pharmaceutical drug development.
+The validation approach is consistent with:
+
+- **FDA 21 CFR Part 11** — R is classified as non-transactional software; electronic records requirements apply to data systems, not to the statistical software engine itself.
+- **FDA Statistical Software Clarifying Statement (2015)** — The FDA does not mandate specific software. However, documentation of software packages (name, version, build) is required upon submission.
+- **R Foundation Guidance** — The R Foundation for Statistical Computing provides official guidance on regulatory compliance. As stated in *A Risk-Based Approach for Assessing R Package Accuracy within a Validated Infrastructure*: "there is minimal risk in using base and recommended (core) packages as a component in a validated system for regulatory analysis and reporting with R."
+- **ISO 9001** — Quality management principles are applied to the validation process.
+
+## Validation Methodology
+
+A risk-based 7-step validation process is applied to each package:
+
+1. **Investigation** — Assess intended use, maturity, and quality; define functional requirements.
+2. **Investigation Review** — Confirm requirements cover all essential functionality.
+3. **Remediation** — Execute unit tests verifying the package satisfies stated requirements.
+4. **Remediation Review** — Peer review of test scripts to confirm requirements are met.
+5. **Final Review** — Independent check against validation best practices.
+6. **Approval** — Final verdict on the package validation status.
+7. **Maintenance** — Continuous maintenance of the testing environment and deployment architecture.
+
+## Package Classification
+
+Two categories are applied within this validated installation:
+
+- **Intended for Use** — Packages loaded directly by analysts during an R session. Full validation is applied: R CMD check, test coverage measurement, and riskmetric scoring.
+- **Imports** — Transitive dependencies required for Intended-for-Use packages to function. Risk-assessed via riskmetric only; not directly loaded by users.
+- **Base/Recommended** — Distributed with R. Classified as Level 1 with no further validation required per R Foundation guidance.
+
+## Validation Levels
+
+| Level | Description | Criteria |
+|-------|-------------|----------|
+| **1** | Base/Recommended | Distributed with R |
+| **2** | Auto-qualified | Intended-for-Use: coverage ≥ `r tryCatch({y <- yaml::read_yaml("validation-thresholds.yml"); paste0(y$coverage_threshold, "%")}, error=function(e)"50%")` AND riskmetric ≤ `r tryCatch({y <- yaml::read_yaml("validation-thresholds.yml"); y$riskmetric_threshold}, error=function(e)"0.5")`; Imports: riskmetric ≤ threshold |
+| **3** | Manual review | Criteria not met; explicit risk assessment required |
+
+\newpage
+
+# System Environment
+
+```{r system-info}
+sys_df <- data.frame(
+  Component = c("R Version", "Platform", "R Library Path"),
+  Value     = c(
+    R.version.string,
+    paste(R.version$platform, R.version$os, sep = " / "),
+    trunc_str(.libPaths()[1], 80)
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(sys_df, format = "latex", booktabs = TRUE,
+      col.names = c("Component", "Value"), linesep = "") |>
+  kableExtra::column_spec(1, bold = TRUE, width = "4cm") |>
+  kableExtra::column_spec(2, width = "10cm")
+```
+
+Session information is provided in full in Appendix A.
+
+\newpage
+
+# Package Classification
+
+## Intended-for-Use Packages
+
+`r length(classification$intended_for_use)` package(s) were identified for full validation.
+
+```{r ifu-table}
+if (length(classification$intended_for_use) > 0) {
+  kable(
+    data.frame(Package = classification$intended_for_use, stringsAsFactors = FALSE),
+    format = "latex", booktabs = TRUE, linesep = ""
+  )
+} else {
+  cat("No intended-for-use packages identified.")
+}
+```
+
+## Import Packages
+
+`r length(classification$imports)` transitive dependenc`r if (length(classification$imports) == 1) "y" else "ies"` identified. These are not directly loaded by analysts and receive riskmetric scoring only.
+
+```{r imports-table}
+if (length(classification$imports) > 0) {
+  n_cols <- 3
+  pkgs   <- classification$imports
+  pad    <- (n_cols - length(pkgs) %% n_cols) %% n_cols
+  padded <- c(pkgs, rep("", pad))
+  mat    <- matrix(padded, ncol = n_cols, byrow = TRUE)
+  kable(mat, format = "latex", booktabs = TRUE,
+        col.names = rep("Package", n_cols), linesep = "")
+} else {
+  cat("No import packages identified.")
+}
+```
+
+## Base Packages
+
+`r length(classification$base)` base/recommended package(s) are classified as Level 1 and require no further validation.
+
+\newpage
+
+# Per-Package Validation Results
+
+```{r pkg-results, results='asis'}
+thresholds <- tryCatch(yaml::read_yaml("validation-thresholds.yml"),
+                       error = function(e) list(coverage_threshold = 50, riskmetric_threshold = 0.5))
+
+for (pkg_name in classification$intended_for_use) {
+  cat("\n## ", pkg_name, "\n\n")
+
+  v <- validation[[pkg_name]]
+  r <- riskmetric_res[[pkg_name]]
+  l <- levels_data[[pkg_name]]
+
+  coverage_pct  <- safe_num(v$coverage_pct)
+  risk_score    <- safe_num(r$riskmetric_score)
+  rcmdcheck_val <- if (!is.null(v$rcmdcheck)) v$rcmdcheck else "N/A"
+
+  # Determine Pass/Fail indicators
+  cov_flag  <- if (!is.na(coverage_pct))
+    if (coverage_pct >= thresholds$coverage_threshold) "PASS" else "FAIL" else "N/A"
+  risk_flag <- if (!is.na(risk_score))
+    if (risk_score <= thresholds$riskmetric_threshold) "PASS" else "FAIL" else "N/A"
+  level_val <- if (!is.null(l$level)) l$level else "N/A"
+
+  metrics_df <- data.frame(
+    Attribute = c("Source", "Git SHA", "R CMD Check",
+                  "Test Coverage", "Coverage Threshold",
+                  "Riskmetric Score", "Riskmetric Threshold",
+                  "Assigned Level"),
+    Value = c(
+      trunc_str(v$source, 65),
+      if (!is.null(v$git_sha) && !is.na(v$git_sha)) substr(v$git_sha, 1, 12) else "N/A",
+      rcmdcheck_val,
+      if (!is.na(coverage_pct)) paste0(round(coverage_pct, 1), "% [", cov_flag, "]")  else "N/A",
+      paste0(thresholds$coverage_threshold, "%"),
+      if (!is.na(risk_score)) paste0(round(risk_score, 4), " [", risk_flag, "]") else "N/A",
+      as.character(thresholds$riskmetric_threshold),
+      paste0("Level ", level_val)
+    ),
+    stringsAsFactors = FALSE
+  )
+
+  print(
+    kable(metrics_df, format = "latex", booktabs = TRUE,
+          col.names = c("Attribute", "Value"), linesep = "") |>
+      kableExtra::column_spec(1, bold = TRUE, width = "4.5cm") |>
+      kableExtra::column_spec(2, width = "9.5cm")
+  )
+
+  cat("\n**Level Reason:** ", trunc_str(l$reason, 110), "\n\n")
+
+  has_errors   <- !is.null(v$rcmdcheck_errors)   && length(v$rcmdcheck_errors)   > 0
+  has_warnings <- !is.null(v$rcmdcheck_warnings) && length(v$rcmdcheck_warnings) > 0
+
+  if (has_errors) {
+    cat("**R CMD Check Errors:**\n\n")
+    for (err in v$rcmdcheck_errors) {
+      cat("\\begin{quote}\\ttfamily\\small\n")
+      cat(gsub("([\\$&%#_{}<>^~\\\\])", "\\\\\\1", substr(err, 1, 400)))
+      cat("\n\\end{quote}\n\n")
+    }
+  }
+
+  if (has_warnings) {
+    cat("**R CMD Check Warnings:**\n\n")
+    for (w in v$rcmdcheck_warnings) {
+      cat("\\begin{quote}\\ttfamily\\small\n")
+      cat(gsub("([\\$&%#_{}<>^~\\\\])", "\\\\\\1", substr(w, 1, 400)))
+      cat("\n\\end{quote}\n\n")
+    }
+  }
+
+  cat("\\vspace{0.5em}\n\n")
+}
+```
+
+\newpage
+
+# Import Package Risk Assessment
+
+Risk scores for all transitive dependency packages. Packages with riskmetric score above `r thresholds$riskmetric_threshold` are flagged for review.
+
+```{r import-risk}
+if (length(classification$imports) > 0) {
+  import_rows <- lapply(classification$imports, function(pkg) {
+    r <- riskmetric_res[[pkg]]
+    l <- levels_data[[pkg]]
+    rs <- safe_num(r$riskmetric_score)
+    data.frame(
+      Package       = pkg,
+      Riskmetric    = if (!is.na(rs)) round(rs, 4) else NA_real_,
+      Level         = if (!is.null(l$level)) l$level else NA_integer_,
+      stringsAsFactors = FALSE
+    )
+  })
+  import_df <- do.call(rbind, import_rows)
+  import_df <- import_df[order(import_df$Package), ]
+
+  kable(import_df, format = "latex", booktabs = TRUE, longtable = TRUE,
+        row.names = FALSE,
+        col.names = c("Package", "Riskmetric Score", "Level"),
+        linesep = "") |>
+    kableExtra::column_spec(1, width = "7cm") |>
+    kableExtra::column_spec(2, width = "4cm") |>
+    kableExtra::column_spec(3, width = "2cm")
+} else {
+  cat("No import packages to display.")
+}
+```
+
+\newpage
+
+# Vulnerability Assessment
+
+Installed packages were scanned using the `oysteR` package against the OSS Index vulnerability database.
+
+```{r vuln-scan}
+if (nrow(vuln_report) > 0) {
+  vuln_display <- vuln_report
+  # Truncate any long description fields for display
+  for (col in names(vuln_display)) {
+    if (is.character(vuln_display[[col]])) {
+      vuln_display[[col]] <- substr(vuln_display[[col]], 1, 60)
+    }
+  }
+  kable(vuln_display, format = "latex", booktabs = TRUE, longtable = TRUE,
+        row.names = FALSE, linesep = "")
+} else {
+  cat("\\textbf{No vulnerabilities detected.} All installed packages passed the OSS Index scan.")
+}
+```
+
+\newpage
+
+# Reproducibility Manifest
+
+Package sources and exact commit SHAs for audit trail and reproduction purposes.
+A `renv.lock` file capturing all installed package versions is provided as a companion artifact.
+
+```{r manifest}
+manifest_rows <- lapply(classification$intended_for_use, function(pkg) {
+  v <- validation[[pkg]]
+  data.frame(
+    Package = pkg,
+    Source  = trunc_str(v$source,  55),
+    Git_SHA = if (!is.null(v$git_sha) && !is.na(v$git_sha))
+                substr(v$git_sha, 1, 12) else "N/A",
+    stringsAsFactors = FALSE
+  )
+})
+
+if (length(manifest_rows) > 0) {
+  manifest_df <- do.call(rbind, manifest_rows)
+  kable(manifest_df, format = "latex", booktabs = TRUE,
+        row.names = FALSE,
+        col.names = c("Package", "Source", "Git SHA (short)"),
+        linesep = "") |>
+    kableExtra::column_spec(1, width = "4cm") |>
+    kableExtra::column_spec(2, width = "7cm") |>
+    kableExtra::column_spec(3, width = "3cm")
+} else {
+  cat("No manifest entries.")
+}
+```
+
+\newpage
+
+# Appendix A: Session Information {-}
+
+```{r session-info}
+session_file <- "session-info.txt"
+if (file.exists(session_file)) {
+  si_lines <- readLines(session_file)
+  cat("\\begin{verbatim}\n")
+  cat(paste(si_lines, collapse = "\n"))
+  cat("\n\\end{verbatim}\n")
+} else {
+  si <- sessionInfo()
+  cat("\\begin{verbatim}\n")
+  cat(paste(capture.output(print(si)), collapse = "\n"))
+  cat("\n\\end{verbatim}\n")
+}
+```

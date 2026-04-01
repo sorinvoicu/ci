@@ -20,6 +20,9 @@ jobs:
         id: r-env
         uses: ./.github/actions/setup-r-environment
 
+      - name: Setup TinyTeX
+        uses: r-lib/actions/setup-tinytex@v2
+
       - name: Assert R package cache hit
         if: steps.r-env.outputs.cache-hit != 'true'
         shell: bash
@@ -83,9 +86,13 @@ jobs:
           writeLines(capture.output(print(si)), "session-info.txt")
           message("Session info captured")
 
-      - name: Generate validation report
+      - name: Generate HTML validation report
         shell: Rscript {0}
         run: source("scripts/generate-report.R")
+
+      - name: Generate PDF validation report
+        shell: Rscript {0}
+        run: source("scripts/generate-pdf-report.R")
 
       - name: Create renv.lock
         shell: Rscript {0}
@@ -112,6 +119,7 @@ jobs:
           name: validation-artifacts
           path: |
             validation-report.html
+            validation-report.pdf
             system-info.json
             package-classification.json
             validation-results.json
