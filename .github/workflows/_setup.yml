@@ -56,10 +56,11 @@ jobs:
           message('All packages loaded successfully!')
 
       - name: Save R package cache
+        if: steps.r-env.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ${{ env.R_LIBS_USER }}
-          key: r-pkgs-${{ runner.os }}-${{ hashFiles('r-packages.txt') }}
+          key: r-pkgs-${{ runner.os }}-${{ vars.CACHE_VERSION || 'v1' }}-${{ hashFiles('r-packages.txt') }}
 
       - name: Collect system info
         shell: Rscript {0}

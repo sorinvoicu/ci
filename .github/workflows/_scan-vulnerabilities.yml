@@ -19,19 +19,12 @@ jobs:
         id: r-env
         uses: ./.github/actions/setup-r-environment
 
-      - name: Install R packages from GitHub (cache miss)
+      - name: Assert R package cache hit
         if: steps.r-env.outputs.cache-hit != 'true'
-        env:
-          GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
-        shell: Rscript {0}
+        shell: bash
         run: |
-          if (!requireNamespace('remotes', quietly = TRUE)) install.packages('remotes')
-          packages <- readLines('r-packages.txt')
-          packages <- packages[packages != '']
-          for (pkg in packages) {
-            message('Installing: ', pkg)
-            remotes::install_github(pkg, upgrade = 'never')
-          }
+          echo "::error::R package cache was not found. Re-run the setup job or increment CACHE_VERSION in repo variables to rebuild."
+          exit 1
 
       - name: Scan vulnerabilities
         shell: Rscript {0}
