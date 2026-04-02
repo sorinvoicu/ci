@@ -316,7 +316,7 @@ if (length(classification$imports) > 0) {
 
 Installed packages were scanned using the `oysteR` package against the OSS Index vulnerability database.
 
-```{r vuln-scan}
+```{r vuln-scan, results='asis'}
 if (nrow(vuln_report) > 0) {
   vuln_display <- vuln_report
   # Truncate any long description fields for display

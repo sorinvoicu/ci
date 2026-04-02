@@ -9,16 +9,28 @@ classification <- fromJSON("package-classification.json")
 pkg_lines <- readLines("r-packages.txt")
 pkg_lines <- pkg_lines[pkg_lines != ""]
 
-# Build a map from package name to GitHub ref
-pkg_map <- list()
-for (line in pkg_lines) {
-  pkg_name <- pak::pkg_deps(line, dependencies = FALSE)$package[1]
-  pkg_map[[pkg_name]] <- line
+# When TARGET_PACKAGE + TARGET_REF are set (matrix CI job), use them directly —
+# avoids re-resolving all package names via network before results are populated.
+# Fall back to building pkg_map from pak when running locally / without TARGET_REF.
+target_pkg <- Sys.getenv("TARGET_PACKAGE", "")
+target_ref <- Sys.getenv("TARGET_REF", "")
+
+if (nchar(target_pkg) > 0 && nchar(target_ref) > 0) {
+  pkg_map <- setNames(list(target_ref), target_pkg)
+} else {
+  pkg_map <- list()
+  for (line in pkg_lines) {
+    pkg_name <- tryCatch(
+      pak::pkg_deps(line, dependencies = FALSE)$package[1],
+      error = function(e) {
+        warning("Could not resolve package name for '", line, "': ", conditionMessage(e))
+        sub("@.*$", "", sub("^.*/", "", line))
+      }
+    )
+    pkg_map[[pkg_name]] <- line
+  }
 }
 
-# When TARGET_PACKAGE is set (e.g. from matrix CI job), validate only that package.
-# Output goes to validation-{name}.json so per-package artifacts don't clash.
-target_pkg <- Sys.getenv("TARGET_PACKAGE", "")
 pkgs_to_validate <- if (nchar(target_pkg) > 0) target_pkg else classification$intended_for_use
 output_file <- if (nchar(target_pkg) > 0) paste0("validation-", target_pkg, ".json") else "validation-results.json"
 

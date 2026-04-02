@@ -54,6 +54,7 @@ jobs:
         env:
           GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
           TARGET_PACKAGE: ${{ inputs.package_name }}
+          TARGET_REF: ${{ inputs.package_ref }}
         shell: Rscript {0}
         run: source("scripts/validate-packages.R")
 
