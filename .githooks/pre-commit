@@ -4,7 +4,7 @@
 set -euo pipefail
 
 if ! command -v Rscript &>/dev/null || ! command -v yq &>/dev/null; then
-  exec nix develop "path:$(git rev-parse --show-toplevel)/.claude" --command "$0" "$@"
+  exec nix develop "path:$(git rev-parse --show-toplevel)/tests" --command "$0" "$@"
 fi
 
 PASS=0
