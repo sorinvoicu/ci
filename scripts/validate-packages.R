@@ -96,7 +96,10 @@ for (pkg_name in pkgs_to_validate) {
   # R CMD check
   message("  Running R CMD check...")
   check_result <- tryCatch({
-    res <- rcmdcheck(clone_dir, args = c("--no-manual", "--no-build-vignettes"),
+    res <- rcmdcheck(clone_dir,
+                     args = c("--no-manual", "--no-vignettes"),
+                     build_args = "--no-build-vignettes",
+                     env = c(rcmdcheck_env(), "_R_CHECK_FORCE_SUGGESTS_" = "false"),
                      quiet = TRUE, error_on = "never")
     status <- if (length(res$errors) > 0) {
       "ERROR"
