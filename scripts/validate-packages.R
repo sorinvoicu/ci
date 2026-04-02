@@ -36,11 +36,10 @@ output_file <- if (nchar(target_pkg) > 0) paste0("validation-", target_pkg, ".js
 
 results <- list()
 
-# Always write whatever results were collected, even on early exit
-on.exit({
-  writeBin(charToRaw(enc2utf8(as.character(toJSON(results, pretty = TRUE, auto_unbox = TRUE)))), output_file)
-  message("\nValidation results written to ", output_file)
-}, add = TRUE)
+# on.exit() at the top level of source() fires immediately (per eval expression),
+# not when the script finishes. Use tryCatch/finally instead to ensure results are
+# written after the loop completes, even on unexpected errors.
+tryCatch({
 
 for (pkg_name in pkgs_to_validate) {
   message("\n=== Validating: ", pkg_name, " ===")
@@ -144,3 +143,8 @@ for (pkg_name in pkgs_to_validate) {
   # Cleanup
   unlink(clone_dir, recursive = TRUE)
 }
+
+}, finally = {
+  writeBin(charToRaw(enc2utf8(as.character(toJSON(results, pretty = TRUE, auto_unbox = TRUE)))), output_file)
+  message("\nValidation results written to ", output_file)
+})
