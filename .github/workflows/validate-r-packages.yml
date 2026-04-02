@@ -2,17 +2,116 @@ name: Validate R Packages
 
 on:
   workflow_dispatch:
+    inputs:
+      force-revalidate:
+        description: "Force re-run of all validation jobs (ignore cache)"
+        type: boolean
+        required: false
+        default: false
   push:
     branches:
       - main
 
+permissions:
+  actions: write
+
 jobs:
+  pre-check:
+    runs-on: ubuntu-latest
+    env:
+      CACHE_VERSION: ${{ vars.CACHE_VERSION || 'v2' }}
+    outputs:
+      run-validate: ${{ steps.decide.outputs.run-validate }}
+      run-riskmetric: ${{ steps.decide.outputs.run-riskmetric }}
+      run-scan: ${{ steps.decide.outputs.run-scan }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Lookup validation cache
+        id: cache-lookup
+        uses: actions/cache/restore@v5
+        with:
+          path: _vcache
+          key: validation-${{ env.CACHE_VERSION }}-${{ hashFiles('r-packages.txt') }}-${{ github.run_id }}
+          restore-keys: |
+            validation-${{ env.CACHE_VERSION }}-${{ hashFiles('r-packages.txt') }}-
+          lookup-only: true
+
+      - name: Decide which jobs to run
+        id: decide
+        env:
+          CACHE_MATCHED_KEY: ${{ steps.cache-lookup.outputs.cache-matched-key }}
+          FORCE: ${{ inputs.force-revalidate || 'false' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+
+          run_validate=true
+          run_riskmetric=true
+          run_scan=true
+
+          if [[ "$FORCE" == "true" ]]; then
+            echo "Force revalidation requested — running all jobs"
+          elif [[ -z "$CACHE_MATCHED_KEY" ]]; then
+            echo "No validation cache found — running all jobs"
+          else
+            echo "Cache found: $CACHE_MATCHED_KEY"
+
+            PREV_SHA=$(gh api \
+              "repos/${{ github.repository }}/actions/workflows/validate-r-packages.yml/runs?status=success&per_page=5&branch=main" \
+              --jq '[.workflow_runs[] | select(.head_sha != "${{ github.sha }}")] | first | .head_sha // empty' \
+              2>/dev/null || echo "")
+
+            if [[ -z "$PREV_SHA" ]]; then
+              echo "No previous successful run found — running all jobs"
+            elif ! git cat-file -e "${PREV_SHA}^{commit}" 2>/dev/null; then
+              echo "Previous SHA $PREV_SHA not in local history — running all jobs"
+            else
+              echo "Comparing HEAD (${{ github.sha }}) vs previous successful run ($PREV_SHA)"
+              CHANGED=$(git diff --name-only "$PREV_SHA" HEAD)
+              echo "Changed files:"
+              echo "$CHANGED"
+
+              if echo "$CHANGED" | grep -qE '^(r-packages\.txt|scripts/validate-packages\.R)$'; then
+                echo "→ run validate (r-packages.txt or validate script changed)"
+                run_validate=true
+              else
+                echo "→ skip validate"
+                run_validate=false
+              fi
+
+              if echo "$CHANGED" | grep -qE '^(r-packages\.txt|scripts/run-riskmetric\.R)$'; then
+                echo "→ run riskmetric (r-packages.txt or riskmetric script changed)"
+                run_riskmetric=true
+              else
+                echo "→ skip riskmetric"
+                run_riskmetric=false
+              fi
+
+              if echo "$CHANGED" | grep -qE '^(r-packages\.txt|scripts/scan-vulnerabilities\.R)$'; then
+                echo "→ run scan (r-packages.txt or scan script changed)"
+                run_scan=true
+              else
+                echo "→ skip scan"
+                run_scan=false
+              fi
+            fi
+          fi
+
+          echo "run-validate=$run_validate" >> $GITHUB_OUTPUT
+          echo "run-riskmetric=$run_riskmetric" >> $GITHUB_OUTPUT
+          echo "run-scan=$run_scan" >> $GITHUB_OUTPUT
+
   setup:
     uses: ./.github/workflows/_setup.yml
     secrets: inherit
 
   validate:
-    needs: setup
+    needs: [setup, pre-check]
+    if: needs.pre-check.outputs.run-validate == 'true'
     strategy:
       matrix:
         package: ${{ fromJson(needs.setup.outputs.packages) }}
@@ -24,16 +123,29 @@ jobs:
     secrets: inherit
 
   riskmetric:
-    needs: setup
+    needs: [setup, pre-check]
+    if: needs.pre-check.outputs.run-riskmetric == 'true'
     uses: ./.github/workflows/_riskmetric.yml
     secrets: inherit
 
   scan:
-    needs: setup
+    needs: [setup, pre-check]
+    if: needs.pre-check.outputs.run-scan == 'true'
     uses: ./.github/workflows/_scan-vulnerabilities.yml
     secrets: inherit
 
   report:
-    needs: [validate, riskmetric, scan]
+    needs: [setup, pre-check, validate, riskmetric, scan]
+    if: >-
+      always() && !cancelled() &&
+      needs.setup.result == 'success' &&
+      needs.pre-check.result == 'success' &&
+      (needs.validate.result == 'success' || needs.validate.result == 'skipped') &&
+      (needs.riskmetric.result == 'success' || needs.riskmetric.result == 'skipped') &&
+      (needs.scan.result == 'success' || needs.scan.result == 'skipped')
     uses: ./.github/workflows/_report.yml
+    with:
+      run-validate: ${{ needs.pre-check.outputs.run-validate }}
+      run-riskmetric: ${{ needs.pre-check.outputs.run-riskmetric }}
+      run-scan: ${{ needs.pre-check.outputs.run-scan }}
     secrets: inherit

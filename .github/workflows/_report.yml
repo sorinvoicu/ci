@@ -2,11 +2,29 @@ name: _Report (assign levels + generate report + renv.lock)
 
 on:
   workflow_call:
+    inputs:
+      run-validate:
+        description: "Whether the validate job ran (true) or was skipped (false)"
+        type: string
+        required: false
+        default: 'true'
+      run-riskmetric:
+        description: "Whether the riskmetric job ran (true) or was skipped (false)"
+        type: string
+        required: false
+        default: 'true'
+      run-scan:
+        description: "Whether the scan job ran (true) or was skipped (false)"
+        type: string
+        required: false
+        default: 'true'
   workflow_dispatch:
 
 jobs:
   report:
     runs-on: windows-latest
+    permissions:
+      actions: write
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       GITHUB_TOKEN: ${{ github.token }}
@@ -36,28 +54,71 @@ jobs:
           echo "::error::R package cache was not found. Re-run the setup job or increment CACHE_VERSION in repo variables to rebuild."
           exit 1
 
+      - name: Restore validation cache
+        if: inputs.run-validate != 'true' || inputs.run-riskmetric != 'true' || inputs.run-scan != 'true'
+        id: vcache-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: _vcache
+          key: validation-${{ env.CACHE_VERSION }}-${{ hashFiles('r-packages.txt') }}-${{ github.run_id }}
+          restore-keys: |
+            validation-${{ env.CACHE_VERSION }}-${{ hashFiles('r-packages.txt') }}-
+
+      - name: Copy cached results for skipped jobs
+        if: inputs.run-validate != 'true' || inputs.run-riskmetric != 'true' || inputs.run-scan != 'true'
+        shell: bash
+        run: |
+          if [[ "${{ inputs.run-validate }}" != "true" ]]; then
+            if [[ ! -f "_vcache/validation-results.json" ]]; then
+              echo "::error::validation-results.json not in cache but validate job was skipped"
+              exit 1
+            fi
+            cp _vcache/validation-results.json validation-results.json
+            echo "Using cached validation-results.json"
+          fi
+          if [[ "${{ inputs.run-riskmetric }}" != "true" ]]; then
+            if [[ ! -f "_vcache/riskmetric-results.json" ]]; then
+              echo "::error::riskmetric-results.json not in cache but riskmetric job was skipped"
+              exit 1
+            fi
+            cp _vcache/riskmetric-results.json riskmetric-results.json
+            echo "Using cached riskmetric-results.json"
+          fi
+          if [[ "${{ inputs.run-scan }}" != "true" ]]; then
+            if [[ ! -f "_vcache/vulnerability-report.csv" ]]; then
+              echo "::error::vulnerability-report.csv not in cache but scan job was skipped"
+              exit 1
+            fi
+            cp _vcache/vulnerability-report.csv vulnerability-report.csv
+            echo "Using cached vulnerability-report.csv"
+          fi
+
       - name: Download setup artifacts
         uses: actions/download-artifact@v4
         with:
           name: setup-artifacts
 
       - name: Download riskmetric artifacts
+        if: inputs.run-riskmetric == 'true'
         uses: actions/download-artifact@v4
         with:
           name: riskmetric-artifacts
 
       - name: Download scan artifacts
+        if: inputs.run-scan == 'true'
         uses: actions/download-artifact@v4
         with:
           name: scan-artifacts
 
       - name: Download all per-package validation artifacts
+        if: inputs.run-validate == 'true'
         uses: actions/download-artifact@v4
         with:
           pattern: validation-*
           merge-multiple: true
 
       - name: Merge per-package validation results
+        if: inputs.run-validate == 'true'
         shell: Rscript {0}
         run: |
           library(jsonlite)
@@ -125,6 +186,23 @@ jobs:
             prompt = FALSE,
             force = TRUE
           )
+
+      - name: Stage validation cache
+        if: inputs.run-validate == 'true' || inputs.run-riskmetric == 'true' || inputs.run-scan == 'true'
+        shell: bash
+        run: |
+          mkdir -p _vcache
+          cp validation-results.json _vcache/validation-results.json
+          cp riskmetric-results.json _vcache/riskmetric-results.json
+          cp vulnerability-report.csv _vcache/vulnerability-report.csv
+          echo "Staged validation cache"
+
+      - name: Save validation cache
+        if: inputs.run-validate == 'true' || inputs.run-riskmetric == 'true' || inputs.run-scan == 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: _vcache
+          key: validation-${{ env.CACHE_VERSION }}-${{ hashFiles('r-packages.txt') }}-${{ github.run_id }}
 
       - name: Upload validation artifacts
         uses: actions/upload-artifact@v4
