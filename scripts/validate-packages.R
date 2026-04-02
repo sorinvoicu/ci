@@ -99,7 +99,9 @@ for (pkg_name in pkgs_to_validate) {
     res <- rcmdcheck(clone_dir,
                      args = c("--no-manual", "--no-vignettes"),
                      build_args = "--no-build-vignettes",
-                     env = c(rcmdcheck_env(), "_R_CHECK_FORCE_SUGGESTS_" = "false"),
+                     env = c("_R_CHECK_CRAN_INCOMING_" = "false",
+                             "_R_CHECK_CRAN_INCOMING_REMOTE_" = "false",
+                             "_R_CHECK_FORCE_SUGGESTS_" = "false"),
                      quiet = TRUE, error_on = "never")
     status <- if (length(res$errors) > 0) {
       "ERROR"
