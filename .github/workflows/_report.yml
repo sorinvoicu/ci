@@ -142,3 +142,15 @@ jobs:
             level-assignments.json
             session-info.txt
             renv.lock
+
+      - name: Delete intermediate artifacts
+        if: success()
+        shell: pwsh
+        run: |
+          $artifacts = (gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts?per_page=100" | ConvertFrom-Json).artifacts
+          foreach ($artifact in $artifacts) {
+            if ($artifact.name -ne "validation-artifacts") {
+              Write-Host "Deleting artifact: $($artifact.name)"
+              gh api --method DELETE "repos/${{ github.repository }}/actions/artifacts/$($artifact.id)"
+            }
+          }
