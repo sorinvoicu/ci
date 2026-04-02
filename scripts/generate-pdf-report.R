@@ -11,7 +11,8 @@ options(tinytex.verbose = TRUE)
 
 render(
   input          = "templates/validation-report-pdf.Rmd",
-  output_file    = file.path(getwd(), "validation-report.pdf"),
+  output_file    = "validation-report.pdf",
+  output_dir     = getwd(),
   knit_root_dir  = getwd(),
   quiet          = FALSE
 )
