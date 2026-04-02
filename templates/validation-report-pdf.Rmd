@@ -54,6 +54,14 @@ trunc_str <- function(s, n = 70) {
   s <- as.character(s)
   if (nchar(s) > n) paste0(substr(s, 1, n - 3), "...") else s
 }
+
+# Helper: get package source — prefer validation result, fall back to
+# classification refs (guaranteed present for directly listed packages)
+pkg_source <- function(pkg, v) {
+  if (!is.null(v) && !is.null(v$source) && !is.na(v$source)) return(v$source)
+  ref <- classification$intended_for_use_refs[[pkg]]
+  if (!is.null(ref) && length(ref) > 0 && !is.na(ref)) ref else "N/A"
+}
 ```
 
 \newpage
@@ -230,7 +238,7 @@ for (pkg_name in classification$intended_for_use) {
                   "Riskmetric Score", "Riskmetric Threshold",
                   "Assigned Level"),
     Value = c(
-      trunc_str(v$source, 65),
+      trunc_str(pkg_source(pkg_name, v), 65),
       if (!is.null(v$git_sha) && !is.na(v$git_sha)) substr(v$git_sha, 1, 12) else "N/A",
       rcmdcheck_val,
       if (!is.na(coverage_pct)) paste0(round(coverage_pct, 1), "% [", cov_flag, "]")  else "N/A",
@@ -344,7 +352,7 @@ manifest_rows <- lapply(classification$intended_for_use, function(pkg) {
   v <- validation[[pkg]]
   data.frame(
     Package = pkg,
-    Source  = trunc_str(v$source,  55),
+    Source  = trunc_str(pkg_source(pkg, v), 55),
     Git_SHA = if (!is.null(v$git_sha) && !is.na(v$git_sha))
                 substr(v$git_sha, 1, 12) else "N/A",
     stringsAsFactors = FALSE
