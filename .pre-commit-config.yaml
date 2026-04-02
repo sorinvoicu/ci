@@ -1,0 +1,19 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+        exclude: ^tests/
+      - id: end-of-file-fixer
+        exclude: ^tests/
+      - id: trailing-whitespace
+        exclude: ^tests/
+
+  - repo: local
+    hooks:
+      - id: r-syntax
+        name: R syntax check
+        language: system
+        entry: 'Rscript --vanilla -e "for(f in commandArgs(TRUE)) tryCatch(parse(f),error=function(e)stop(f,conditionMessage(e)))"'
+        files: \.(R|Rmd)$
+        exclude: ^tests/
