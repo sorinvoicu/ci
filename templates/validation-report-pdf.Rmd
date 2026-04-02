@@ -16,6 +16,7 @@ header-includes:
   - \usepackage{longtable}
   - \usepackage{array}
   - \usepackage{hyperref}
+  - \usepackage{fancyvrb}
   - \pagestyle{fancy}
   - \fancyhf{}
   - \fancyhead[L]{\small R Package Validation Report}
@@ -263,20 +264,20 @@ for (pkg_name in classification$intended_for_use) {
   has_warnings <- !is.null(v$rcmdcheck_warnings) && length(v$rcmdcheck_warnings) > 0
 
   if (has_errors) {
-    cat("**R CMD Check Errors:**\n\n")
+    cat("\n**R CMD Check Errors:**\n\n")
     for (err in v$rcmdcheck_errors) {
-      cat("\\begin{quote}\\ttfamily\\small\n")
-      cat(gsub("([\\$&%#_{}<>^~\\\\])", "\\\\\\1", substr(err, 1, 400)))
-      cat("\n\\end{quote}\n\n")
+      cat("\\begin{Verbatim}[breaklines=true, fontsize=\\small]\n")
+      cat(as.character(err))
+      cat("\n\\end{Verbatim}\n\n")
     }
   }
 
   if (has_warnings) {
-    cat("**R CMD Check Warnings:**\n\n")
+    cat("\n**R CMD Check Warnings:**\n\n")
     for (w in v$rcmdcheck_warnings) {
-      cat("\\begin{quote}\\ttfamily\\small\n")
-      cat(gsub("([\\$&%#_{}<>^~\\\\])", "\\\\\\1", substr(w, 1, 400)))
-      cat("\n\\end{quote}\n\n")
+      cat("\\begin{Verbatim}[breaklines=true, fontsize=\\small]\n")
+      cat(as.character(w))
+      cat("\n\\end{Verbatim}\n\n")
     }
   }
 
@@ -377,7 +378,7 @@ if (length(manifest_rows) > 0) {
 
 # Appendix A: Session Information {-}
 
-```{r session-info}
+```{r session-info, results='asis'}
 session_file <- "session-info.txt"
 if (file.exists(session_file)) {
   si_lines <- readLines(session_file)
