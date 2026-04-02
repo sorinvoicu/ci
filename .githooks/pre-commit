@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Pre-commit hook: R syntax + YAML validation on staged files.
+# If the required tools aren't on PATH, re-executes inside the nix dev shell.
 set -euo pipefail
+
+if ! command -v Rscript &>/dev/null || ! command -v yq &>/dev/null; then
+  exec nix develop "path:$(git rev-parse --show-toplevel)/.claude" --command "$0" "$@"
+fi
 
 PASS=0
 
